@@ -7,6 +7,7 @@ Created on Thu Dec 16 12:52:24 2021
 
 import os
 import dash
+import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
@@ -44,7 +45,7 @@ def massage_div_df(df_):
     return df
 
 def get_raw_data(fsym_id):
-    seclist = str(tuple(fsym_id)) if len(fsym_id)>1 else f"'{fsym_id[0]}'"
+    seclist = str(tuple(fsym_id)) if len(fsym_id) > 1 else f"'{fsym_id[0]}'"
     query = f"""select * from fstest.dbo.bg_div 
                 where fsym_id in {seclist}
                 order by fsym_id asc, exdate desc
@@ -75,41 +76,59 @@ def generate_control_card():
     """
     :return: A Div containing controls for graphs.
     """
-    return html.Div(
+    return dbc.Row(
         id="control-card",
         children=[
-            html.P("Select fsym_id"),
-            dcc.Dropdown(
+            dbc.Col(html.P("Select fsym_id"), width=2),
+            dbc.Col(dcc.Dropdown(
                 id="fsym-id-dropdown",
                 options=[{"label": i, "value": i} for i in fsym_id],
                 value=fsym_id[0],
-            ),
+            ), width=4),
             html.Br(),
             
-            html.P("Select row"),
-            dcc.Dropdown(id="idx-dropdown", options=[{'label': 0, 'value': 0}, {'label': 1, 'value': 1}], value=0),
+            dbc.Col(html.P("Select row"), width=2),
+            dbc.Col(dcc.Dropdown(id="idx-dropdown", 
+                                 options=[{'label': 0, 'value': 0}, 
+                                          {'label': 1, 'value': 1}], value=0)
+                    , width=4),
             html.Br()
         ],
     )
-
-cur_options = ['listing', 'payment']
-def make_currency_radio_selector():
-    return html.Div(
-        children=[
-            html.P(f'{option} currency') for option in cur_options] +
-        [
-            dcc.RadioItems(
+def make_currency_radio(type_lst):
+    res = []
+    for option in type_lst:
+        res = res + [
+            dbc.Col(html.P(f'{option} currency'), width=2),
+            dbc.Col(dbc.RadioItems(
                 id=f'{option}-currency-radio',
                 options=[{'label': cur, 'value': cur } for cur in cur_list],
-                value='USD'
-            ) for option in cur_options],
+                value='USD'), width=4)
+            ]
+    return res
+    
+def make_currency_radio_selector():
+    return dbc.Row(
+        children=make_currency_radio(['listing', 'payment']),
         style = dict(horizontalAlign = 'center'))
 
+def make_div_ini_skip(type_lst):
+    res = []
+    for option in type_lst:
+        res = res + [
+            dbc.Col(dbc.Label(f'Div {option}'), width=1),
+            dbc.Col(dbc.RadioItems(
+                    id=f'div-{option}-radio',
+                    options=[{'label': flag, 'value': flag } for flag in [0, 1]],
+                    value='USD'), width=2)
+            ]
+    return res
+    
 def make_div_input():
-    return html.Div(
+    return dbc.Row(
         children=[
-            html.P('Div type'),
-            dcc.RadioItems(
+            dbc.Col(html.P('Div type')),
+            dbc.Col(dbc.RadioItems(
                 id='div-type-radio',
                 options=[
                     {'label': 'regular', 'value': 'regular'},
@@ -117,28 +136,27 @@ def make_div_input():
                     {'label': 'suspension', 'value': 'suspension'}
                 ],
                 value='regular'
-            ),
-            html.P('Div freq'),
-            dcc.RadioItems(
+            )),
+            dbc.Col(html.P('Div freq')),
+            dbc.Col(dbc.RadioItems(
                 id='div-freq-radio',
                 options=[{'label': frq, 'value': frq } for frq in [1, 2, 4, 12]],
                 value=2
-            )] + [
-                html.P(f'Div {option}') for option in ['initiation', 'skipped']] +
-                [dcc.RadioItems(
-                    id=f'div-{option}-radio',
-                    options=[{'label': flag, 'value': flag } for flag in [0, 1]],
-                    value='USD') for option in ['initiation', 'skipped']],
+            ))] + make_div_ini_skip(['initiation', 'skipped']),
         style = dict(horizontalAlign = 'center'))
 
 def make_id_input():
-    return html.Div(
+    return dbc.Row(
         id="id_input_container",
         children=[
-            dcc.Input(id='fsym_id_input', type='text', 
-                      placeholder='Enter fsym_id'),
-            dcc.Input(id='bbg_id_input', type='text', 
-                      placeholder='Enter bbg id')])
+            dbc.Col(dbc.Input(id='fsym_id_input', type='text', 
+                      placeholder='Enter fsym_id')),
+            dbc.Col(dbc.Input(id='bbg_id_input', type='text', 
+                      placeholder='Enter bbg id')),
+            dbc.Col(dbc.Input(
+                        id="payment-amount-input",
+                        type='number',
+                        placeholder='Enter payment amount')),])
 
     # dcc.DatePickerSingle(
     #     id='my-date-picker-single',
@@ -168,20 +186,20 @@ def make_date_picker():
 
 def make_buttons():
     return dbc.Row([
-                dbc.Col(dbc.Button(id="update-btn", children='Update Change',
+                dbc.Col(dbc.Button(id="update-btn", children='Update Change', color='success',
                                     style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="delete-btn", children='Delete Payment',
+                dbc.Col(dbc.Button(id="delete-btn", children='Delete Payment', color='danger',
                                     style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="revert-btn", children='Revert Change', n_clicks=0,
+                dbc.Col(dbc.Button(id="revert-btn", children='Revert Change', n_clicks=0, color='warning',
                                     style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="modified-btn", children='View Modified Payment',
+                dbc.Col(dbc.Button(id="modified-btn", children='View Modified Payment', color='info',
                                     style = dict(horizontalAlign = 'center')))], justify='evenly')
 
 
 # App Layout
 app.layout = dbc.Container([
-    
-    html.H1("Header"),
+    html.H1("Dividend Entry Editor"),
+    html.Br(),
     
     html.Div(
             id="top-column",
@@ -210,11 +228,6 @@ app.layout = dbc.Container([
             children=[make_currency_radio_selector()]
     ),
 
-    dcc.Input(
-            id="payment-amount-input",
-            type='number',
-            placeholder='Enter payment amount'
-    ),
     
     html.Br(),
     
@@ -238,13 +251,51 @@ app.layout = dbc.Container([
         children=[make_buttons()]),
     
     html.Hr(),
-    html.Div(id='display-selected-values')
+    html.Div(id='display-selected-values'),
+    
+    dash_table.DataTable(
+        id='updated-row',
+        columns=[{'name': i, 'id':i} for i in data.columns]),
+    
+    html.Br(),
+    
+    # dash_table.DataTable(
+    #     id='selected-row',
+    #     columns=[{'name': i, 'id':i} for i in data.columns]),
+    
+    # dash_table.DataTable(
+    #     id='selected-fsym-id-table',
+    #     columns=[{'name': i, 'id':i} for i in data.columns],
+    #     data=data.to_dict('records'))
+    
+    dash_table.DataTable(
+        id='selected-fsym-id-table',
+        columns=[{'name': i, 'id':i} for i in data.columns],
+        data=data.to_dict('records'),
+        editable=True,
+        filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        page_action="native",
+        page_current= 0,
+        page_size= 20
+    )
+
+
 ])
 
 @app.callback(
     Output('idx-dropdown', 'options'),
     Input('fsym-id-dropdown', 'value'))
 def set_idx_options(selected_fsym_id):
+    idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
+    return [{'label': i, 'value': i} for i in idx.index]
+
+
+@app.callback(
+    Output('idx-dropdown', 'options'),
+    Input('fsym-id-dropdown', 'value'))
+def update_new_row(selected_fsym_id):
     idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
     return [{'label': i, 'value': i} for i in idx.index]
 
