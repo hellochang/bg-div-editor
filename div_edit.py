@@ -199,11 +199,31 @@ fsym_id = data['fsym_id'].unique()
 #                                     style = dict(horizontalAlign = 'center')))], justify='evenly')
 
 print(data.dtypes)
-
+def highlight_special_case_row():
+    return [
+        {
+            'if': {
+                'filter_query': f'{{div_type}} = {case}',
+            },
+            'backgroundColor': color,
+            'color': 'white'
+        } for case, color in zip(['special', 'skipped', 'suspension'], ['#fc8399', '#53cfcb', '#fbaea0'])
+    ] + \
+     [
+        {
+            'if': {
+                'filter_query': '{div_initiation} = 1',
+            },
+            'backgroundColor': '#fc8399',
+            'color': 'white'
+        }
+    ]
 # App Layout
 app.layout = dbc.Container([
+    html.Br(),
     html.H1("Dividend Entry Editor"),
     html.Br(),
+    
     
     # html.Div(
     #         id="top-column",
@@ -273,32 +293,47 @@ app.layout = dbc.Container([
     # #     data=data.to_dict('records'))
     dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
     dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
+    
+    html.Br(),
+    html.Br(),
+
     dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
         data=data.to_dict('records'),
         editable=True,
-        # filter_action="native",
+        filter_action="native",
         sort_action="native",
         sort_mode="multi",
         page_action="native",
         page_current= 0,
-        page_size= 20
-        # export_format='csv',
-        # export_headers='display'
+        page_size = 15,
+        style_data_conditional=highlight_special_case_row(),
+        style_cell={
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+            'maxWidth': 0,
+        },
+        tooltip_data=[
+            {
+                column: {'value': str(value), 'type': 'markdown'}
+                for column, value in row.items()
+            } for row in data.to_dict('records')
+        ],
+        tooltip_duration=None
     ),
     
     dash_table.DataTable(
         id='modified-data-rows',
         columns=[{'name': i, 'id':i} for i in data.columns],
-        data=[],
+        data=[{}],
         editable=True,
         # filter_action="native",
         sort_action="native",
         sort_mode="multi",
         page_action="native",
         page_current= 0,
-        page_size= 20
+        page_size= 15
     ),
     html.Div('container')
 ])
@@ -342,28 +377,28 @@ def export_data(nclicks, modified_data):
         df.to_csv('edited_div_data')
         return 'Data saved to DB', 'success'
 
-@app.callback(Output('container', 'children'),
-    Input('data-table', 'data_timestamp'),
-    State('data-table', 'data'),
-    State('modified-data-rows', 'data'))
-def display(btn1, btn2, btn3):
-    ctx = dash.callback_context
+# @app.callback(Output('container', 'children'),
+#     Input('data-table', 'data_timestamp'),
+#     State('data-table', 'data'),
+#     State('modified-data-rows', 'data'))
+# def display(btn1, btn2, btn3):
+#     ctx = dash.callback_context
 
-    if not ctx.triggered:
-        button_id = 'No clicks yet'
-    else:
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+#     if not ctx.triggered:
+#         button_id = 'No clicks yet'
+#     else:
+#         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    ctx_msg = json.dumps({
-        'states': ctx.states,
-        'triggered': ctx.triggered,
-        'inputs': ctx.inputs
-    }, indent=2)
+#     ctx_msg = json.dumps({
+#         'states': ctx.states,
+#         'triggered': ctx.triggered,
+#         'inputs': ctx.inputs
+#     }, indent=2)
 
-    return html.Div([
-        html.Pre(ctx_msg),
-        html.Div(button_id)
-    ])
+#     return html.Div([
+#         html.Pre(ctx_msg),
+#         html.Div(button_id)
+#     ])
 
 # @app.callback(
 #     Output('idx-dropdown', 'options'),
