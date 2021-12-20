@@ -4,19 +4,22 @@ Created on Thu Dec 16 12:52:24 2021
 
 @author: Chang.Liu
 """
-
+import json
+import time
 import os
 import dash
 import dash_table
 import dash_core_components as dcc
+import dash_bootstrap_components as dbc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
 
 # Plotting
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 from datetime import datetime, date 
 
 import sys
@@ -72,129 +75,130 @@ app = dash.Dash(
 )
 
 fsym_id = data['fsym_id'].unique()
-def generate_control_card():
-    """
-    :return: A Div containing controls for graphs.
-    """
-    return dbc.Row(
-        id="control-card",
-        children=[
-            dbc.Col(html.P("Select fsym_id"), width=2),
-            dbc.Col(dcc.Dropdown(
-                id="fsym-id-dropdown",
-                options=[{"label": i, "value": i} for i in fsym_id],
-                value=fsym_id[0],
-            ), width=4),
-            html.Br(),
+# def generate_control_card():
+#     """
+#     :return: A Div containing controls for graphs.
+#     """
+#     return dbc.Row(
+#         id="control-card",
+#         children=[
+#             dbc.Col(html.P("Select fsym_id"), width=2),
+#             dbc.Col(dcc.Dropdown(
+#                 id="fsym-id-dropdown",
+#                 options=[{"label": i, "value": i} for i in fsym_id],
+#                 value=fsym_id[0],
+#             ), width=4),
+#             html.Br(),
             
-            dbc.Col(html.P("Select row"), width=2),
-            dbc.Col(dcc.Dropdown(id="idx-dropdown", 
-                                 options=[{'label': 0, 'value': 0}, 
-                                          {'label': 1, 'value': 1}], value=0)
-                    , width=4),
-            html.Br()
-        ],
-    )
-def make_currency_radio(type_lst):
-    res = []
-    for option in type_lst:
-        res = res + [
-            dbc.Col(html.P(f'{option} currency'), width=2),
-            dbc.Col(dbc.RadioItems(
-                id=f'{option}-currency-radio',
-                options=[{'label': cur, 'value': cur } for cur in cur_list],
-                value='USD'), width=4)
-            ]
-    return res
+#             dbc.Col(html.P("Select row"), width=2),
+#             dbc.Col(dcc.Dropdown(id="idx-dropdown", 
+#                                  options=[{'label': 0, 'value': 0}, 
+#                                           {'label': 1, 'value': 1}], value=0)
+#                     , width=4),
+#             html.Br()
+#         ],
+#     )
+# def make_currency_radio(type_lst):
+#     res = []
+#     for option in type_lst:
+#         res = res + [
+#             dbc.Col(html.P(f'{option} currency'), width=2),
+#             dbc.Col(dbc.RadioItems(
+#                 id=f'{option}-currency-radio',
+#                 options=[{'label': cur, 'value': cur } for cur in cur_list],
+#                 value='USD'), width=4)
+#             ]
+#     return res
     
-def make_currency_radio_selector():
-    return dbc.Row(
-        children=make_currency_radio(['listing', 'payment']),
-        style = dict(horizontalAlign = 'center'))
+# def make_currency_radio_selector():
+#     return dbc.Row(
+#         children=make_currency_radio(['listing', 'payment']),
+#         style = dict(horizontalAlign = 'center'))
 
-def make_div_ini_skip(type_lst):
-    res = []
-    for option in type_lst:
-        res = res + [
-            dbc.Col(dbc.Label(f'Div {option}'), width=1),
-            dbc.Col(dbc.RadioItems(
-                    id=f'div-{option}-radio',
-                    options=[{'label': flag, 'value': flag } for flag in [0, 1]],
-                    value='USD'), width=2)
-            ]
-    return res
+# def make_div_ini_skip(type_lst):
+#     res = []
+#     for option in type_lst:
+#         res = res + [
+#             dbc.Col(dbc.Label(f'Div {option}'), width=1),
+#             dbc.Col(dbc.RadioItems(
+#                     id=f'div-{option}-radio',
+#                     options=[{'label': flag, 'value': flag } for flag in [0, 1]],
+#                     value='USD'), width=2)
+#             ]
+#     return res
     
-def make_div_input():
-    return dbc.Row(
-        children=[
-            dbc.Col(html.P('Div type')),
-            dbc.Col(dbc.RadioItems(
-                id='div-type-radio',
-                options=[
-                    {'label': 'regular', 'value': 'regular'},
-                    {'label': 'special', 'value': 'special'},
-                    {'label': 'suspension', 'value': 'suspension'}
-                ],
-                value='regular'
-            )),
-            dbc.Col(html.P('Div freq')),
-            dbc.Col(dbc.RadioItems(
-                id='div-freq-radio',
-                options=[{'label': frq, 'value': frq } for frq in [1, 2, 4, 12]],
-                value=2
-            ))] + make_div_ini_skip(['initiation', 'skipped']),
-        style = dict(horizontalAlign = 'center'))
+# def make_div_input():
+#     return dbc.Row(
+#         children=[
+#             dbc.Col(html.P('Div type')),
+#             dbc.Col(dbc.RadioItems(
+#                 id='div-type-radio',
+#                 options=[
+#                     {'label': 'regular', 'value': 'regular'},
+#                     {'label': 'special', 'value': 'special'},
+#                     {'label': 'suspension', 'value': 'suspension'}
+#                 ],
+#                 value='regular'
+#             )),
+#             dbc.Col(html.P('Div freq')),
+#             dbc.Col(dbc.RadioItems(
+#                 id='div-freq-radio',
+#                 options=[{'label': frq, 'value': frq } for frq in [1, 2, 4, 12]],
+#                 value=2
+#             ))] + make_div_ini_skip(['initiation', 'skipped']),
+#         style = dict(horizontalAlign = 'center'))
 
-def make_id_input():
-    return dbc.Row(
-        id="id_input_container",
-        children=[
-            dbc.Col(dbc.Input(id='fsym_id_input', type='text', 
-                      placeholder='Enter fsym_id')),
-            dbc.Col(dbc.Input(id='bbg_id_input', type='text', 
-                      placeholder='Enter bbg id')),
-            dbc.Col(dbc.Input(
-                        id="payment-amount-input",
-                        type='number',
-                        placeholder='Enter payment amount')),])
+# def make_id_input():
+#     return dbc.Row(
+#         id="id_input_container",
+#         children=[
+#             dbc.Col(dbc.Input(id='fsym_id_input', type='text', 
+#                       placeholder='Enter fsym_id')),
+#             dbc.Col(dbc.Input(id='bbg_id_input', type='text', 
+#                       placeholder='Enter bbg id')),
+#             dbc.Col(dbc.Input(
+#                         id="payment-amount-input",
+#                         type='number',
+#                         placeholder='Enter payment amount')),])
 
-    # dcc.DatePickerSingle(
-    #     id='my-date-picker-single',
-    #     min_date_allowed=date(1995, 8, 5),
-    #     max_date_allowed=date(2017, 9, 19),
-    #     initial_visible_month=date(2017, 8, 5),
-    #     date=date(2017, 8, 25)
-    # ),
-def get_date_picker(type_lst):
-    res = []
-    for type in type_lst:
-        res = res + [
-            dbc.Col(html.P(f'{type} date')),
-            dbc.Col(dcc.DatePickerSingle(
-                id=f'{type}-date-picker',
-                min_date_allowed=date(1995, 8, 5),
-                max_date_allowed=date(2017, 9, 19),
-                initial_visible_month=date(2017, 8, 5),
-                date=date(2017, 8, 25)
-                ))
-            ]
-    return res
+#     # dcc.DatePickerSingle(
+#     #     id='my-date-picker-single',
+#     #     min_date_allowed=date(1995, 8, 5),
+#     #     max_date_allowed=date(2017, 9, 19),
+#     #     initial_visible_month=date(2017, 8, 5),
+#     #     date=date(2017, 8, 25)
+#     # ),
+# def get_date_picker(type_lst):
+#     res = []
+#     for type in type_lst:
+#         res = res + [
+#             dbc.Col(html.P(f'{type} date')),
+#             dbc.Col(dcc.DatePickerSingle(
+#                 id=f'{type}-date-picker',
+#                 min_date_allowed=date(1995, 8, 5),
+#                 max_date_allowed=date(2017, 9, 19),
+#                 initial_visible_month=date(2017, 8, 5),
+#                 date=date(2017, 8, 25)
+#                 ))
+#             ]
+#     return res
     
-def make_date_picker():
-    return dbc.Row(get_date_picker(['declared', "exdate", 'record', 'payment']))
+# def make_date_picker():
+#     return dbc.Row(get_date_picker(['declared', "exdate", 'record', 'payment']))
 
 
-def make_buttons():
-    return dbc.Row([
-                dbc.Col(dbc.Button(id="update-btn", children='Update Change', color='success',
-                                    style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="delete-btn", children='Delete Payment', color='danger',
-                                    style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="revert-btn", children='Revert Change', n_clicks=0, color='warning',
-                                    style = dict(horizontalAlign = 'center'))),
-                dbc.Col(dbc.Button(id="modified-btn", children='View Modified Payment', color='info',
-                                    style = dict(horizontalAlign = 'center')))], justify='evenly')
+# def make_buttons():
+#     return dbc.Row([
+#                 dbc.Col(dbc.Button(id="update-btn", children='Update Change', color='success',
+#                                     style = dict(horizontalAlign = 'center'))),
+#                 dbc.Col(dbc.Button(id="delete-btn", children='Delete Payment', color='danger',
+#                                     style = dict(horizontalAlign = 'center'))),
+#                 dbc.Col(dbc.Button(id="revert-btn", children='Revert Change', n_clicks=0, color='warning',
+#                                     style = dict(horizontalAlign = 'center'))),
+#                 dbc.Col(dbc.Button(id="modified-btn", children='View Modified Payment', color='info',
+#                                     style = dict(horizontalAlign = 'center')))], justify='evenly')
 
+print(data.dtypes)
 
 # App Layout
 app.layout = dbc.Container([
@@ -267,62 +271,114 @@ app.layout = dbc.Container([
     # #     id='selected-fsym-id-table',
     # #     columns=[{'name': i, 'id':i} for i in data.columns],
     # #     data=data.to_dict('records'))
-    
+    dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
+    dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
     dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
         data=data.to_dict('records'),
         editable=True,
-        filter_action="native",
+        # filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        page_action="native",
+        page_current= 0,
+        page_size= 20
+        # export_format='csv',
+        # export_headers='display'
+    ),
+    
+    dash_table.DataTable(
+        id='modified-data-rows',
+        columns=[{'name': i, 'id':i} for i in data.columns],
+        data=[],
+        editable=True,
+        # filter_action="native",
         sort_action="native",
         sort_mode="multi",
         page_action="native",
         page_current= 0,
         page_size= 20
     ),
-    
-    dash_table.DataTable(
-        id='modified-data-rows',
-        columns=[{'name': i, 'id':i} for i in data.columns],
-        # data=data.to_dict('records'),
-        editable=True,
-        filter_action="native",
-        sort_action="native",
-        sort_mode="multi",
-        page_action="native",
-        page_current= 0,
-        page_size= 20
-    )
-
+    html.Div('container')
 ])
 
 @app.callback(
-    Output('data-table', 'data'),
-    # Output('modified-data-rows', 'data'),
+    # Output('data-table', 'data'),
+    Output('modified-data-rows', 'data'),
     Input('data-table', 'data_timestamp'),
-    State('data-table', 'data'))
-def update_columns(timestamp, rows):
+    Input('data-table', 'data_previous'),
+    State('data-table', 'data'),
+    State('modified-data-rows', 'data'))
+def update_columns(timestamp, rows_prev, rows, modified_rows):
+    # ctx = dash.callback_context
 
-    for row in rows:
-        row = row
-    return rows
-
-
+    # for row in rows:
+    #     row = row
+        # if timestamp == time.time():
+        #     print(timestamp)
+        #     print(time.time())
+        #     modified_rows.append(row)
+    modified_rows = modified_rows + [i for i in rows if i not in rows_prev]
+    modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
+    # modified_rows =  rows_prev  
+    pd.DataFrame(rows).to_csv('modified_data')
+    return modified_rows
 
 @app.callback(
-    Output('idx-dropdown', 'options'),
-    Input('fsym-id-dropdown', 'value'))
-def set_idx_options(selected_fsym_id):
-    idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
-    return [{'label': i, 'value': i} for i in idx.index]
+        Output("save-msg", "children"),
+        Output("save-msg", "color"),
+        Input("save-button", "n_clicks"),
+        State("data-table", "data")
+        )
+def export_data(nclicks, modified_data): 
+    if nclicks == 0:
+        raise PreventUpdate
+    else:
+        df = pd.DataFrame(modified_data)
+        datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
+        df = df.astype(datatypes)
+        print(df.dtypes)
+        df.to_csv('edited_div_data')
+        return 'Data saved to DB', 'success'
+
+@app.callback(Output('container', 'children'),
+    Input('data-table', 'data_timestamp'),
+    State('data-table', 'data'),
+    State('modified-data-rows', 'data'))
+def display(btn1, btn2, btn3):
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        button_id = 'No clicks yet'
+    else:
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    ctx_msg = json.dumps({
+        'states': ctx.states,
+        'triggered': ctx.triggered,
+        'inputs': ctx.inputs
+    }, indent=2)
+
+    return html.Div([
+        html.Pre(ctx_msg),
+        html.Div(button_id)
+    ])
+
+# @app.callback(
+#     Output('idx-dropdown', 'options'),
+#     Input('fsym-id-dropdown', 'value'))
+# def set_idx_options(selected_fsym_id):
+#     idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
+#     return [{'label': i, 'value': i} for i in idx.index]
 
 
-@app.callback(
-    Output('idx-dropdown', 'options'),
-    Input('fsym-id-dropdown', 'value'))
-def update_new_row(selected_fsym_id):
-    idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
-    return [{'label': i, 'value': i} for i in idx.index]
+# @app.callback(
+#     Output('idx-dropdown', 'options'),
+#     Input('fsym-id-dropdown', 'value'))
+# def update_new_row(selected_fsym_id):
+#     idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
+#     return [{'label': i, 'value': i} for i in idx.index]
 
 
 # @app.callback(
@@ -336,13 +392,13 @@ def update_new_row(selected_fsym_id):
 #     else:
 #         return dash.no_update
 
-@app.callback(
-    Output('display-selected-values', 'children'),
-    Input('fsym-id-dropdown', 'value'),
-    Input('idx-dropdown', 'value'))
-def set_display_children(selected_fsym_id, selected_idx):
-    return f'{selected_idx} is an index in {selected_fsym_id}'
+# @app.callback(
+#     Output('display-selected-values', 'children'),
+#     Input('fsym-id-dropdown', 'value'),
+#     Input('idx-dropdown', 'value'))
+# def set_display_children(selected_fsym_id, selected_idx):
+#     return f'{selected_idx} is an index in {selected_fsym_id}'
 
 # Running the server
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8030)
+    app.run_server(debug=True, port=8030, dev_tools_silence_routes_logging = False)
