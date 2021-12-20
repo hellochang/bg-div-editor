@@ -201,75 +201,75 @@ app.layout = dbc.Container([
     html.H1("Dividend Entry Editor"),
     html.Br(),
     
-    html.Div(
-            id="top-column",
-            children=[generate_control_card()]
-    ),
-    
-    html.Hr(),
-    html.Br(),
-    
-    html.Div(
-            id="id-input-panel",
-            children=[make_id_input()]
-    ),
-    
-    html.Br(),    
-
-    html.Div(
-            id="date-input-panel",
-            children=[make_date_picker()]
-    ),
-    
-    html.Br(),
-    
-    html.Div(
-            id="currency-select-panel",
-            children=[make_currency_radio_selector()]
-    ),
-
-    
-    html.Br(),
-    
-    html.Div(
-            id="div-input-panel",
-            children=[make_div_input()]
-    ),
-    
-    html.Br(),
-
     # html.Div(
     #         id="top-column",
     #         children=[generate_control_card()]
-    # )
+    # ),
+    
+    # html.Hr(),
+    # html.Br(),
+    
+    # html.Div(
+    #         id="id-input-panel",
+    #         children=[make_id_input()]
+    # ),
+    
+    # html.Br(),    
+
+    # html.Div(
+    #         id="date-input-panel",
+    #         children=[make_date_picker()]
+    # ),
     
     # html.Br(),
     
-    html.Br(),    
-    html.Div(
-        id='button-panel',
-        children=[make_buttons()]),
+    # html.Div(
+    #         id="currency-select-panel",
+    #         children=[make_currency_radio_selector()]
+    # ),
+
     
-    html.Hr(),
-    html.Div(id='display-selected-values'),
+    # html.Br(),
     
-    dash_table.DataTable(
-        id='updated-row',
-        columns=[{'name': i, 'id':i} for i in data.columns]),
+    # html.Div(
+    #         id="div-input-panel",
+    #         children=[make_div_input()]
+    # ),
     
-    html.Br(),
+    # html.Br(),
+
+    # # html.Div(
+    # #         id="top-column",
+    # #         children=[generate_control_card()]
+    # # )
+    
+    # # html.Br(),
+    
+    # html.Br(),    
+    # html.Div(
+    #     id='button-panel',
+    #     children=[make_buttons()]),
+    
+    # html.Hr(),
+    # html.Div(id='display-selected-values'),
     
     # dash_table.DataTable(
-    #     id='selected-row',
+    #     id='updated-row',
     #     columns=[{'name': i, 'id':i} for i in data.columns]),
     
-    # dash_table.DataTable(
-    #     id='selected-fsym-id-table',
-    #     columns=[{'name': i, 'id':i} for i in data.columns],
-    #     data=data.to_dict('records'))
+    # html.Br(),
+    
+    # # dash_table.DataTable(
+    # #     id='selected-row',
+    # #     columns=[{'name': i, 'id':i} for i in data.columns]),
+    
+    # # dash_table.DataTable(
+    # #     id='selected-fsym-id-table',
+    # #     columns=[{'name': i, 'id':i} for i in data.columns],
+    # #     data=data.to_dict('records'))
     
     dash_table.DataTable(
-        id='selected-fsym-id-table',
+        id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
         data=data.to_dict('records'),
         editable=True,
@@ -279,10 +279,35 @@ app.layout = dbc.Container([
         page_action="native",
         page_current= 0,
         page_size= 20
+    ),
+    
+    dash_table.DataTable(
+        id='modified-data-rows',
+        columns=[{'name': i, 'id':i} for i in data.columns],
+        # data=data.to_dict('records'),
+        editable=True,
+        filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        page_action="native",
+        page_current= 0,
+        page_size= 20
     )
 
-
 ])
+
+@app.callback(
+    Output('data-table', 'data'),
+    # Output('modified-data-rows', 'data'),
+    Input('data-table', 'data_timestamp'),
+    State('data-table', 'data'))
+def update_columns(timestamp, rows):
+
+    for row in rows:
+        row = row
+    return rows
+
+
 
 @app.callback(
     Output('idx-dropdown', 'options'),
