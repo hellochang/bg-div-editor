@@ -295,12 +295,6 @@ app.layout = dbc.Container([
     # #     id='selected-fsym-id-table',
     # #     columns=[{'name': i, 'id':i} for i in data.columns],
     # #     data=data.to_dict('records'))
-    dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
-    dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
-    
-    html.Br(),
-    html.Br(),
-
     html.Div([dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
@@ -308,6 +302,11 @@ app.layout = dbc.Container([
         data=data.to_dict('records')
     )], style= {'display': 'none'}),
     
+    html.Br(),
+    html.Br(),
+    html.H3("Data"),
+
+
     dash_table.DataTable(
         id='output-data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
@@ -336,7 +335,8 @@ app.layout = dbc.Container([
     
     html.Br(),
     html.Br(),  
-    
+    html.H3("Modified History"),
+
     dash_table.DataTable(
         id='modified-data-rows',
         columns=[{'name': i, 'id':i} for i in data.columns],
@@ -361,6 +361,12 @@ app.layout = dbc.Container([
         ],
         tooltip_duration=None
     ),
+    
+    html.Br(),  
+    html.H5('Save changes'),
+
+    dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
+    dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
     
     html.Div('container')
 ])
