@@ -224,7 +224,11 @@ app.layout = dbc.Container([
     html.H1("Dividend Entry Editor"),
     html.Br(),
     
-    
+    dcc.Dropdown(
+                id="fsym-id-dropdown",
+                options=[{"label": i, "value": i} for i in fsym_id],
+                value=fsym_id[0],
+            ),
     # html.Div(
     #         id="top-column",
     #         children=[generate_control_card()]
@@ -297,10 +301,17 @@ app.layout = dbc.Container([
     html.Br(),
     html.Br(),
 
-    dash_table.DataTable(
+    html.Div([dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
-        data=data.to_dict('records'),
+        editable=False,
+        data=data.to_dict('records')
+    )], style= {'display': 'none'}),
+    
+    dash_table.DataTable(
+        id='output-data-table',
+        columns=[{'name': i, 'id':i} for i in data.columns],
+        # data=[],
         editable=True,
         filter_action="native",
         sort_action="native",
@@ -323,29 +334,54 @@ app.layout = dbc.Container([
         tooltip_duration=None
     ),
     
+    html.Br(),
+    html.Br(),  
+    
     dash_table.DataTable(
         id='modified-data-rows',
         columns=[{'name': i, 'id':i} for i in data.columns],
-        data=[{}],
-        editable=True,
+        # data=[],
         # filter_action="native",
         sort_action="native",
         sort_mode="multi",
         page_action="native",
         page_current= 0,
-        page_size= 15
+        page_size= 15,
+        style_data_conditional=highlight_special_case_row(),
+        style_cell={
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+            'maxWidth': 0,
+        },
+        tooltip_data=[
+            {
+                column: {'value': str(value), 'type': 'markdown'}
+                for column, value in row.items()
+            } for row in data.to_dict('records')
+        ],
+        tooltip_duration=None
     ),
+    
     html.Div('container')
 ])
 
 @app.callback(
+    Output('output-data-table', 'data'),
+    Input('fsym-id-dropdown', 'value'),
+    State('data-table', 'data'))
+def filter_fysm_id(selected_fsym_id, datatable):
+    df = pd.DataFrame(datatable)
+    print(selected_fsym_id)
+    return df[df['fsym_id'] == selected_fsym_id].to_dict('records')
+
+@app.callback(
     # Output('data-table', 'data'),
     Output('modified-data-rows', 'data'),
-    Input('data-table', 'data_timestamp'),
-    Input('data-table', 'data_previous'),
-    State('data-table', 'data'),
+    # Input('data-table', 'data_timestamp'),
+    Input('output-data-table', 'data_previous'),
+    State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
-def update_columns(timestamp, rows_prev, rows, modified_rows):
+def update_modified_columns(rows_prev, rows, modified_rows):
     # ctx = dash.callback_context
 
     # for row in rows:
@@ -354,17 +390,16 @@ def update_columns(timestamp, rows_prev, rows, modified_rows):
         #     print(timestamp)
         #     print(time.time())
         #     modified_rows.append(row)
-    modified_rows = modified_rows + [i for i in rows if i not in rows_prev]
+    modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
     modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
     # modified_rows =  rows_prev  
-    pd.DataFrame(rows).to_csv('modified_data')
     return modified_rows
 
 @app.callback(
         Output("save-msg", "children"),
         Output("save-msg", "color"),
         Input("save-button", "n_clicks"),
-        State("data-table", "data")
+        State("output-data-table", "data")
         )
 def export_data(nclicks, modified_data): 
     if nclicks == 0:
