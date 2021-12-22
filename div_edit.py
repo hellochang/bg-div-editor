@@ -223,82 +223,17 @@ app.layout = dbc.Container([
     html.Br(),
     html.H1("Dividend Entry Editor"),
     html.Br(),
-    
+    dbc.Label('Select a fsym id'),
     dcc.Dropdown(
                 id="fsym-id-dropdown",
                 options=[{"label": i, "value": i} for i in fsym_id],
                 value=fsym_id[0],
             ),
-    # html.Div(
-    #         id="top-column",
-    #         children=[generate_control_card()]
-    # ),
-    
-    # html.Hr(),
-    # html.Br(),
-    
-    # html.Div(
-    #         id="id-input-panel",
-    #         children=[make_id_input()]
-    # ),
-    
-    # html.Br(),    
-
-    # html.Div(
-    #         id="date-input-panel",
-    #         children=[make_date_picker()]
-    # ),
-    
-    # html.Br(),
-    
-    # html.Div(
-    #         id="currency-select-panel",
-    #         children=[make_currency_radio_selector()]
-    # ),
-
-    
-    # html.Br(),
-    
-    # html.Div(
-    #         id="div-input-panel",
-    #         children=[make_div_input()]
-    # ),
-    
-    # html.Br(),
-
-    # # html.Div(
-    # #         id="top-column",
-    # #         children=[generate_control_card()]
-    # # )
-    
-    # # html.Br(),
-    
-    # html.Br(),    
-    # html.Div(
-    #     id='button-panel',
-    #     children=[make_buttons()]),
-    
-    # html.Hr(),
-    # html.Div(id='display-selected-values'),
-    
-    # dash_table.DataTable(
-    #     id='updated-row',
-    #     columns=[{'name': i, 'id':i} for i in data.columns]),
-    
-    # html.Br(),
-    
-    # # dash_table.DataTable(
-    # #     id='selected-row',
-    # #     columns=[{'name': i, 'id':i} for i in data.columns]),
-    
-    # # dash_table.DataTable(
-    # #     id='selected-fsym-id-table',
-    # #     columns=[{'name': i, 'id':i} for i in data.columns],
-    # #     data=data.to_dict('records'))
+  
     html.Div([dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
-        editable=False,
+        editable=True,
         data=data.to_dict('records')
     )], style= {'display': 'none'}),
     
@@ -309,7 +244,15 @@ app.layout = dbc.Container([
 
     dash_table.DataTable(
         id='output-data-table',
-        columns=[{'name': i, 'id':i} for i in data.columns],
+        columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text'}] +
+      [{'name': i, 'id':i, 'presentation': 'dropdown'} for i in ['listing_currency', 'payment_currency']] + 
+        [{'name': i, 'id': i, 'type': 'datetime'} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
+        [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric'}]+
+            [{'name': i, 'id':i, 'presentation': 'dropdown'} 
+               for i in ['div_type','div_freq', 'div_initiation', 'skipped']] +
+            [{'name': i, 'id': i, 'type': 'numeric'} for i in [ 'num_days_exdate',
+           'num_days_paydate']],
+            
         # data=[],
         editable=True,
         filter_action="native",
@@ -320,18 +263,61 @@ app.layout = dbc.Container([
         page_size = 15,
         style_data_conditional=highlight_special_case_row(),
         style_cell={
-            'overflow': 'hidden',
+            # 'overflow': 'hidden',
             'textOverflow': 'ellipsis',
             'maxWidth': 0,
         },
-        tooltip_data=[
-            {
-                column: {'value': str(value), 'type': 'markdown'}
-                for column, value in row.items()
-            } for row in data.to_dict('records')
-        ],
-        tooltip_duration=None
+        dropdown={
+            'div_type': {
+                'options': [
+                    {'label': i, 'value': i}
+                    for i in ['regular', 'special', 'suspension']
+                ]
+            },
+            'div_freq': {
+                  'options': [
+                    {'label': str(i), 'value': i}
+                    for i in [1, 2, 4, 12]
+                ]
+            },
+            'listing_currency': {
+                'options': [
+                    {'label': i, 'value': i}
+                    for i in cur_list
+                ]
+            },
+            'payment_currency': {
+                  'options': [
+                    {'label': i, 'value': i}
+                    for i in cur_list
+                ]
+            },
+            'div_initiation': {
+                  'options': [
+                    {'label': str(i), 'value': i}
+                    for i in [0, 1]
+                ]
+            },
+            'skipped': {
+                  'options': [
+                    {'label': str(i), 'value': i}
+                    for i in [0, 1]
+                ]
+            }
+        },
+        row_deletable=True,
+        # tooltip_data=[
+        #     {
+        #         column: {'value': str(value), 'type': 'markdown'}
+        #         for column, value in row.items()
+        #     } for row in data.to_dict('records')
+        # ],
+        # tooltip_duration=None,
+        # Workaround for bug regarding display row dropdown with Boostrap
+        css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}]
     ),
+    html.Div(id='table-dropdown-container'),
+
     
     html.Br(),
     html.Br(),  
@@ -368,7 +354,6 @@ app.layout = dbc.Container([
     dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
     dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
     
-    html.Div('container')
 ])
 
 @app.callback(
@@ -377,8 +362,22 @@ app.layout = dbc.Container([
     State('data-table', 'data'))
 def filter_fysm_id(selected_fsym_id, datatable):
     df = pd.DataFrame(datatable)
-    print(selected_fsym_id)
     return df[df['fsym_id'] == selected_fsym_id].to_dict('records')
+
+
+@app.callback(
+    Output('data-table', 'data'),
+    Input('output-data-table', 'data'),
+    State('data-table', 'data'))
+def update_data_table(modified_datatable, datatable):
+    df = pd.DataFrame(datatable)
+    modified_df = pd.DataFrame(modified_datatable)  
+    fsym_id = modified_df['fsym_id'].unique()[0]
+    df = df.loc[~(df['fsym_id'] == fsym_id)]
+    # df[df['fsym_id'] == fsym_id] = modified_df
+    res = pd.concat([df, modified_df])
+    return res.to_dict('records')
+
 
 @app.callback(
     # Output('data-table', 'data'),
@@ -387,7 +386,7 @@ def filter_fysm_id(selected_fsym_id, datatable):
     Input('output-data-table', 'data_previous'),
     State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
-def update_modified_columns(rows_prev, rows, modified_rows):
+def update_modified_data_table(rows_prev, rows, modified_rows):
     # ctx = dash.callback_context
 
     # for row in rows:
@@ -405,7 +404,7 @@ def update_modified_columns(rows_prev, rows, modified_rows):
         Output("save-msg", "children"),
         Output("save-msg", "color"),
         Input("save-button", "n_clicks"),
-        State("output-data-table", "data")
+        State("data-table", "data")
         )
 def export_data(nclicks, modified_data): 
     if nclicks == 0:
@@ -477,4 +476,4 @@ def export_data(nclicks, modified_data):
 
 # Running the server
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8030, dev_tools_silence_routes_logging = False)
+    app.run_server(debug=False, port=8030, dev_tools_silence_routes_logging = False)
