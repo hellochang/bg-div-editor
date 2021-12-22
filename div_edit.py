@@ -75,128 +75,6 @@ app = dash.Dash(
 )
 
 fsym_id = data['fsym_id'].unique()
-# def generate_control_card():
-#     """
-#     :return: A Div containing controls for graphs.
-#     """
-#     return dbc.Row(
-#         id="control-card",
-#         children=[
-#             dbc.Col(html.P("Select fsym_id"), width=2),
-#             dbc.Col(dcc.Dropdown(
-#                 id="fsym-id-dropdown",
-#                 options=[{"label": i, "value": i} for i in fsym_id],
-#                 value=fsym_id[0],
-#             ), width=4),
-#             html.Br(),
-            
-#             dbc.Col(html.P("Select row"), width=2),
-#             dbc.Col(dcc.Dropdown(id="idx-dropdown", 
-#                                  options=[{'label': 0, 'value': 0}, 
-#                                           {'label': 1, 'value': 1}], value=0)
-#                     , width=4),
-#             html.Br()
-#         ],
-#     )
-# def make_currency_radio(type_lst):
-#     res = []
-#     for option in type_lst:
-#         res = res + [
-#             dbc.Col(html.P(f'{option} currency'), width=2),
-#             dbc.Col(dbc.RadioItems(
-#                 id=f'{option}-currency-radio',
-#                 options=[{'label': cur, 'value': cur } for cur in cur_list],
-#                 value='USD'), width=4)
-#             ]
-#     return res
-    
-# def make_currency_radio_selector():
-#     return dbc.Row(
-#         children=make_currency_radio(['listing', 'payment']),
-#         style = dict(horizontalAlign = 'center'))
-
-# def make_div_ini_skip(type_lst):
-#     res = []
-#     for option in type_lst:
-#         res = res + [
-#             dbc.Col(dbc.Label(f'Div {option}'), width=1),
-#             dbc.Col(dbc.RadioItems(
-#                     id=f'div-{option}-radio',
-#                     options=[{'label': flag, 'value': flag } for flag in [0, 1]],
-#                     value='USD'), width=2)
-#             ]
-#     return res
-    
-# def make_div_input():
-#     return dbc.Row(
-#         children=[
-#             dbc.Col(html.P('Div type')),
-#             dbc.Col(dbc.RadioItems(
-#                 id='div-type-radio',
-#                 options=[
-#                     {'label': 'regular', 'value': 'regular'},
-#                     {'label': 'special', 'value': 'special'},
-#                     {'label': 'suspension', 'value': 'suspension'}
-#                 ],
-#                 value='regular'
-#             )),
-#             dbc.Col(html.P('Div freq')),
-#             dbc.Col(dbc.RadioItems(
-#                 id='div-freq-radio',
-#                 options=[{'label': frq, 'value': frq } for frq in [1, 2, 4, 12]],
-#                 value=2
-#             ))] + make_div_ini_skip(['initiation', 'skipped']),
-#         style = dict(horizontalAlign = 'center'))
-
-# def make_id_input():
-#     return dbc.Row(
-#         id="id_input_container",
-#         children=[
-#             dbc.Col(dbc.Input(id='fsym_id_input', type='text', 
-#                       placeholder='Enter fsym_id')),
-#             dbc.Col(dbc.Input(id='bbg_id_input', type='text', 
-#                       placeholder='Enter bbg id')),
-#             dbc.Col(dbc.Input(
-#                         id="payment-amount-input",
-#                         type='number',
-#                         placeholder='Enter payment amount')),])
-
-#     # dcc.DatePickerSingle(
-#     #     id='my-date-picker-single',
-#     #     min_date_allowed=date(1995, 8, 5),
-#     #     max_date_allowed=date(2017, 9, 19),
-#     #     initial_visible_month=date(2017, 8, 5),
-#     #     date=date(2017, 8, 25)
-#     # ),
-# def get_date_picker(type_lst):
-#     res = []
-#     for type in type_lst:
-#         res = res + [
-#             dbc.Col(html.P(f'{type} date')),
-#             dbc.Col(dcc.DatePickerSingle(
-#                 id=f'{type}-date-picker',
-#                 min_date_allowed=date(1995, 8, 5),
-#                 max_date_allowed=date(2017, 9, 19),
-#                 initial_visible_month=date(2017, 8, 5),
-#                 date=date(2017, 8, 25)
-#                 ))
-#             ]
-#     return res
-    
-# def make_date_picker():
-#     return dbc.Row(get_date_picker(['declared', "exdate", 'record', 'payment']))
-
-
-# def make_buttons():
-#     return dbc.Row([
-#                 dbc.Col(dbc.Button(id="update-btn", children='Update Change', color='success',
-#                                     style = dict(horizontalAlign = 'center'))),
-#                 dbc.Col(dbc.Button(id="delete-btn", children='Delete Payment', color='danger',
-#                                     style = dict(horizontalAlign = 'center'))),
-#                 dbc.Col(dbc.Button(id="revert-btn", children='Revert Change', n_clicks=0, color='warning',
-#                                     style = dict(horizontalAlign = 'center'))),
-#                 dbc.Col(dbc.Button(id="modified-btn", children='View Modified Payment', color='info',
-#                                     style = dict(horizontalAlign = 'center')))], justify='evenly')
 
 print(data.dtypes)
 def highlight_special_case_row():
@@ -221,15 +99,16 @@ def highlight_special_case_row():
 # App Layout
 app.layout = dbc.Container([
     html.Br(),
-    html.H1("Dividend Entry Editor"),
+    dbc.Row(html.H1("Dividend Entry Editor")),
     html.Br(),
-    dbc.Label('Select a fsym id'),
+    dbc.Row(dbc.Label('Select a fsym id')),
     dcc.Dropdown(
                 id="fsym-id-dropdown",
                 options=[{"label": i, "value": i} for i in fsym_id],
                 value=fsym_id[0],
             ),
-  
+    
+    # Hidden datatable for storing data
     html.Div([dash_table.DataTable(
         id='data-table',
         columns=[{'name': i, 'id':i} for i in data.columns],
@@ -239,7 +118,7 @@ app.layout = dbc.Container([
     
     html.Br(),
     html.Br(),
-    html.H3("Data"),
+    dbc.Row(html.H3("Data")),
 
 
     dash_table.DataTable(
@@ -258,9 +137,13 @@ app.layout = dbc.Container([
         filter_action="native",
         sort_action="native",
         sort_mode="multi",
-        page_action="native",
-        page_current= 0,
-        page_size = 15,
+        page_action='none',
+        fixed_rows={'headers': True},
+        style_header={
+            'backgroundColor': 'white',
+            'fontWeight': 'bold'
+        },
+        style_table={'height': '300px', 'overflowY': 'auto'},
         style_data_conditional=highlight_special_case_row(),
         style_cell={
             # 'overflow': 'hidden',
@@ -306,6 +189,7 @@ app.layout = dbc.Container([
             }
         },
         row_deletable=True,
+        
         # tooltip_data=[
         #     {
         #         column: {'value': str(value), 'type': 'markdown'}
@@ -332,13 +216,14 @@ app.layout = dbc.Container([
         sort_mode="multi",
         page_action="native",
         page_current= 0,
-        page_size= 15,
+        page_size= 30,
         style_data_conditional=highlight_special_case_row(),
         style_cell={
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
             'maxWidth': 0,
         },
+        row_deletable=True,
         tooltip_data=[
             {
                 column: {'value': str(value), 'type': 'markdown'}
@@ -387,17 +272,8 @@ def update_data_table(modified_datatable, datatable):
     State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
-    # ctx = dash.callback_context
-
-    # for row in rows:
-    #     row = row
-        # if timestamp == time.time():
-        #     print(timestamp)
-        #     print(time.time())
-        #     modified_rows.append(row)
     modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
     modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
-    # modified_rows =  rows_prev  
     return modified_rows
 
 @app.callback(
@@ -417,63 +293,9 @@ def export_data(nclicks, modified_data):
         df.to_csv('edited_div_data')
         return 'Data saved to DB', 'success'
 
-# @app.callback(Output('container', 'children'),
-#     Input('data-table', 'data_timestamp'),
-#     State('data-table', 'data'),
-#     State('modified-data-rows', 'data'))
-# def display(btn1, btn2, btn3):
-#     ctx = dash.callback_context
-
-#     if not ctx.triggered:
-#         button_id = 'No clicks yet'
-#     else:
-#         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-
-#     ctx_msg = json.dumps({
-#         'states': ctx.states,
-#         'triggered': ctx.triggered,
-#         'inputs': ctx.inputs
-#     }, indent=2)
-
-#     return html.Div([
-#         html.Pre(ctx_msg),
-#         html.Div(button_id)
-#     ])
-
-# @app.callback(
-#     Output('idx-dropdown', 'options'),
-#     Input('fsym-id-dropdown', 'value'))
-# def set_idx_options(selected_fsym_id):
-#     idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
-#     return [{'label': i, 'value': i} for i in idx.index]
-
-
-# @app.callback(
-#     Output('idx-dropdown', 'options'),
-#     Input('fsym-id-dropdown', 'value'))
-# def update_new_row(selected_fsym_id):
-#     idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
-#     return [{'label': i, 'value': i} for i in idx.index]
-
-
-# @app.callback(
-#     Output(),
-#     Input('fsym-id-dropdown', 'value'),
-#     Input('idx-dropdown', 'value'))
-# def set_idx_options(selected_fsym_id, selected_idx):
-#     if len(selected_fsym_id) != 0:
-#         idx = data[data['fsym_id' == selected_fsym_id]].reset_index(drop=True)
-#         return [{'label': i, 'value': i} for i in idx.index]
-#     else:
-#         return dash.no_update
-
-# @app.callback(
-#     Output('display-selected-values', 'children'),
-#     Input('fsym-id-dropdown', 'value'),
-#     Input('idx-dropdown', 'value'))
-# def set_display_children(selected_fsym_id, selected_idx):
-#     return f'{selected_idx} is an index in {selected_fsym_id}'
-
 # Running the server
 if __name__ == "__main__":
-    app.run_server(debug=False, port=8030, dev_tools_silence_routes_logging = False)
+    # View the app at http://192.168.2.77:8080/ or
+    #   http://[host computer's IP address]:8080/
+    app.run_server(debug=False, host='0.0.0.0', port = 8080)
+    #    app.run_server(debug=False, port=8030, dev_tools_silence_routes_logging = False)
