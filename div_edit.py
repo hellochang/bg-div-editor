@@ -123,27 +123,28 @@ app.layout = dbc.Container([
 
     dash_table.DataTable(
         id='output-data-table',
-        columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text'}] +
-      [{'name': i, 'id':i, 'presentation': 'dropdown'} for i in ['listing_currency', 'payment_currency']] + 
-        [{'name': i, 'id': i, 'type': 'datetime'} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
-        [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric'}]+
-            [{'name': i, 'id':i, 'presentation': 'dropdown'} 
+        columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
+      [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
+        [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
+        [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric', 'editable': True}]+
+            [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} 
                for i in ['div_type','div_freq', 'div_initiation', 'skipped']] +
-            [{'name': i, 'id': i, 'type': 'numeric'} for i in [ 'num_days_exdate',
+            [{'name': i, 'id': i, 'type': 'numeric', 'editable': True} for i in [ 'num_days_exdate',
            'num_days_paydate']],
             
         # data=[],
-        editable=True,
+        # editable=True,
         filter_action="native",
         sort_action="native",
         sort_mode="multi",
-        page_action='none',
+        # page_action='none',
         fixed_rows={'headers': True},
         style_header={
             'backgroundColor': 'white',
             'fontWeight': 'bold'
         },
-        style_table={'height': '300px', 'overflowY': 'auto'},
+        page_size=20,
+        # style_table={'height': '300px', 'overflowY': 'auto'},
         style_data_conditional=highlight_special_case_row(),
         style_cell={
             # 'overflow': 'hidden',
@@ -253,15 +254,26 @@ def filter_fysm_id(selected_fsym_id, datatable):
 @app.callback(
     Output('data-table', 'data'),
     Input('output-data-table', 'data'),
-    State('data-table', 'data'))
-def update_data_table(modified_datatable, datatable):
+    State('data-table', 'data'),
+    State('modified-data-rows', 'data'),
+    State('modified-data-rows', 'data_previous'))
+def update_data_table(modified_datatable, datatable, rows, rows_prev):
     df = pd.DataFrame(datatable)
     modified_df = pd.DataFrame(modified_datatable)  
     fsym_id = modified_df['fsym_id'].unique()[0]
     df = df.loc[~(df['fsym_id'] == fsym_id)]
     # df[df['fsym_id'] == fsym_id] = modified_df
-    res = pd.concat([df, modified_df])
-    return res.to_dict('records')
+    res = pd.concat([df, modified_df]).to_dict('records')
+    return res + [row for row in rows_prev if row not in rows]
+
+
+# @app.callback(
+#     Output('data-table', 'data'),
+#     Input('modified-data-rows', 'data'),
+#     State('modified-data-rows', 'data_previous'),
+#     State('data-table', 'data'))
+# def undo_delete_data_table(rows, rows_prev, datatable):
+#     return datatable + [row for row in rows_prev if row not in rows]
 
 
 @app.callback(
@@ -297,5 +309,5 @@ def export_data(nclicks, modified_data):
 if __name__ == "__main__":
     # View the app at http://192.168.2.77:8080/ or
     #   http://[host computer's IP address]:8080/
-    app.run_server(debug=False, host='0.0.0.0', port = 8080)
-    #    app.run_server(debug=False, port=8030, dev_tools_silence_routes_logging = False)
+    # app.run_server(debug=False, host='0.0.0.0', port = 8080)
+    app.run_server(debug=True, port=8030, dev_tools_silence_routes_logging = False)
