@@ -121,6 +121,7 @@ app.layout = dbc.Container([
     dbc.Row(html.H3("Data")),
 
 
+
     dash_table.DataTable(
         id='output-data-table',
         columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text'}] +
@@ -233,12 +234,44 @@ app.layout = dbc.Container([
         tooltip_duration=None
     ),
     
+
+    html.Br(),
+    html.Br(),  
+    html.H3("Modified History"),
+
+    dash_table.DataTable(
+        id='modified-data-rows',
+        columns=[{'name': i, 'id':i} for i in data.columns],
+        # data=[],
+        # filter_action="native",
+        sort_action="native",
+        sort_mode="multi",
+        page_action="native",
+        page_current= 0,
+        page_size= 15,
+        style_data_conditional=highlight_special_case_row(),
+        style_cell={
+            'overflow': 'hidden',
+            'textOverflow': 'ellipsis',
+            'maxWidth': 0,
+        },
+        tooltip_data=[
+            {
+                column: {'value': str(value), 'type': 'markdown'}
+                for column, value in row.items()
+            } for row in data.to_dict('records')
+        ],
+        tooltip_duration=None
+    ),
+    
+
     html.Br(),  
     html.H5('Save changes'),
 
     dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
     dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
     
+
 ])
 
 @app.callback(
@@ -263,7 +296,6 @@ def update_data_table(modified_datatable, datatable):
     res = pd.concat([df, modified_df])
     return res.to_dict('records')
 
-
 @app.callback(
     # Output('data-table', 'data'),
     Output('modified-data-rows', 'data'),
@@ -280,7 +312,7 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
         Output("save-msg", "children"),
         Output("save-msg", "color"),
         Input("save-button", "n_clicks"),
-        State("data-table", "data")
+        State("output-data-table", "data")
         )
 def export_data(nclicks, modified_data): 
     if nclicks == 0:
