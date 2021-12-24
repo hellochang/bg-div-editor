@@ -285,13 +285,19 @@ def update_data_table(modified_datatable, datatable, rows, rows_prev):
     State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
-    print( [i.update({'action': 'update'}) for i in rows if i not in rows_prev] )
-
     if (len(rows) == len(rows_prev)):
-        modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
-        modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
+        modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
+        modified_rows[-1]['action'] = 'update'
+        modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
+        modified_rows[-1]['action'] = 'original'
     if (len(rows) < len(rows_prev)):
-         modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows]
+         modified_rows = modified_rows + [i for i in rows_prev if i not in rows]
+         modified_rows[-1]['action'] = 'delete'
+    # if (len(rows) == len(rows_prev)):ss
+    #     modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
+    #     modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
+    # if (len(rows) < len(rows_prev)):
+    #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
     return modified_rows
 
 @app.callback(
