@@ -104,7 +104,7 @@ app.layout = dbc.Container([
     dbc.Row(dbc.Label('Select a fsym id')),
     dcc.Dropdown(
                 id="fsym-id-dropdown",
-                options=[{"label": i, "value": i} for i in fsym_id],
+                options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in fsym_id],
                 value=fsym_id[0],
             ),
     
@@ -116,8 +116,7 @@ app.layout = dbc.Container([
         data=data.to_dict('records')
     )], style= {'display': 'none'}),
     
-    html.Br(),
-    html.Br(),
+
     dbc.Row(html.H3("Data")),
 
 
@@ -210,8 +209,8 @@ app.layout = dbc.Container([
 
     dash_table.DataTable(
         id='modified-data-rows',
-        columns=[{'name': i, 'id':i} for i in data.columns],
-        # data=[],
+        columns= [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in data.columns],
+        data=[],
         # filter_action="native",
         sort_action="native",
         sort_mode="multi",
@@ -246,9 +245,11 @@ app.layout = dbc.Container([
     Output('output-data-table', 'data'),
     Input('fsym-id-dropdown', 'value'),
     State('data-table', 'data'))
-def filter_fysm_id(selected_fsym_id, datatable):
+def filter_fysm_id(selected, datatable):
+    if selected == 'All':
+        return datatable
     df = pd.DataFrame(datatable)
-    return df[df['fsym_id'] == selected_fsym_id].to_dict('records')
+    return df[df['fsym_id'] == selected].to_dict('records')
 
 
 @app.callback(
@@ -264,7 +265,7 @@ def update_data_table(modified_datatable, datatable, rows, rows_prev):
     df = df.loc[~(df['fsym_id'] == fsym_id)]
     # df[df['fsym_id'] == fsym_id] = modified_df
     res = pd.concat([df, modified_df]).to_dict('records')
-    return res + [row for row in rows_prev if row not in rows]
+    return res + [row for row in rows_prev if row not in rows] if rows is not None else res
 
 
 # @app.callback(
@@ -284,8 +285,13 @@ def update_data_table(modified_datatable, datatable, rows, rows_prev):
     State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
-    modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
-    modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
+    print( [i.update({'action': 'update'}) for i in rows if i not in rows_prev] )
+
+    if (len(rows) == len(rows_prev)):
+        modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
+        modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
+    if (len(rows) < len(rows_prev)):
+         modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows]
     return modified_rows
 
 @app.callback(
