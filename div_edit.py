@@ -98,148 +98,153 @@ def highlight_special_case_row():
     ]
 # App Layout
 app.layout = dbc.Container([
-    html.Br(),
-    dbc.Row(html.H1("Dividend Entry Editor")),
-    html.Br(),
-    dbc.Row(dbc.Label('Select a fsym id')),
-    dcc.Dropdown(
-                id="fsym-id-dropdown",
-                options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in fsym_id],
-                value=fsym_id[0],
-            ),
-    
-    # Hidden datatable for storing data
-    html.Div([dash_table.DataTable(
-        id='data-table',
-        columns=[{'name': i, 'id':i} for i in data.columns],
-        editable=True,
-        data=data.to_dict('records')
-    )], style= {'display': 'none'}),
-    
-
-    dbc.Row(html.H3("Data")),
-
-
-    dash_table.DataTable(
-        id='output-data-table',
-        columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
-      [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
-        [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
-        [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric', 'editable': True}]+
-            [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} 
-               for i in ['div_type','div_freq', 'div_initiation', 'skipped']] +
-            [{'name': i, 'id': i, 'type': 'numeric', 'editable': True} for i in [ 'num_days_exdate',
-           'num_days_paydate']],
-            
-        # data=[],
-        # editable=True,
-        filter_action="native",
-        sort_action="native",
-        sort_mode="multi",
-        # page_action='none',
-        fixed_rows={'headers': True},
-        style_header={
-            'backgroundColor': 'white',
-            'fontWeight': 'bold'
-        },
-        page_size=20,
-        # style_table={'height': '300px', 'overflowY': 'auto'},
-        style_data_conditional=highlight_special_case_row(),
-        style_cell={
-            # 'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-            'maxWidth': 0,
-        },
-        dropdown={
-            'div_type': {
-                'options': [
-                    {'label': i, 'value': i}
-                    for i in ['regular', 'special', 'suspension']
-                ]
-            },
-            'div_freq': {
-                  'options': [
-                    {'label': str(i), 'value': i}
-                    for i in [1, 2, 4, 12]
-                ]
-            },
-            'listing_currency': {
-                'options': [
-                    {'label': i, 'value': i}
-                    for i in cur_list
-                ]
-            },
-            'payment_currency': {
-                  'options': [
-                    {'label': i, 'value': i}
-                    for i in cur_list
-                ]
-            },
-            'div_initiation': {
-                  'options': [
-                    {'label': str(i), 'value': i}
-                    for i in [0, 1]
-                ]
-            },
-            'skipped': {
-                  'options': [
-                    {'label': str(i), 'value': i}
-                    for i in [0, 1]
-                ]
-            }
-        },
-        row_deletable=True,
+    dbc.Card(
+        dbc.CardBody([
         
-        # tooltip_data=[
-        #     {
-        #         column: {'value': str(value), 'type': 'markdown'}
-        #         for column, value in row.items()
-        #     } for row in data.to_dict('records')
-        # ],
-        # tooltip_duration=None,
-        # Workaround for bug regarding display row dropdown with Boostrap
-        css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}]
-    ),
-    html.Div(id='table-dropdown-container'),
+        html.Br(),
+        dbc.Row(html.H1("Dividend Entry Editor"), justify='center'),
+        html.Br(),
+        dbc.Row(dbc.Col(html.H3("Data")), justify='start'),
 
+        dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
+        dbc.Row(dbc.Col(dcc.Dropdown(
+                    id="fsym-id-dropdown",
+                    options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in fsym_id],
+                    value=fsym_id[0],
+                ), width=10), justify='center'),
+        
+        # Hidden datatable for storing data
+        html.Div([dash_table.DataTable(
+            id='data-table',
+            columns=[{'name': i, 'id':i} for i in data.columns],
+            editable=True,
+            data=data.to_dict('records')
+        )], style= {'display': 'none'}),
+        
     
-    html.Br(),
-    html.Br(),  
-    html.H3("Modified History"),
-
-    dash_table.DataTable(
-        id='modified-data-rows',
-        columns= [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in data.columns],
-        data=[],
-        # filter_action="native",
-        sort_action="native",
-        sort_mode="multi",
-        page_action="native",
-        page_current= 0,
-        page_size= 30,
-        style_data_conditional=highlight_special_case_row(),
-        style_cell={
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-            'maxWidth': 0,
-        },
-        row_deletable=True,
-        tooltip_data=[
-            {
-                column: {'value': str(value), 'type': 'markdown'}
-                for column, value in row.items()
-            } for row in data.to_dict('records')
-        ],
-        tooltip_duration=None
-    ),
     
-    html.Br(),  
-    html.H5('Save changes'),
-
-    dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"),
-    dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'),
+        # dbc.Row(html.Br()),
+        
+        dbc.Row(dbc.Col(dash_table.DataTable(
+            id='output-data-table',
+            columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
+          [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
+            [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
+            [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric', 'editable': True}]+
+                [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} 
+                   for i in ['div_type','div_freq', 'div_initiation', 'skipped']] +
+                [{'name': i, 'id': i, 'type': 'numeric', 'editable': True} for i in [ 'num_days_exdate',
+               'num_days_paydate']],
+                
+            # data=[],
+            # editable=True,
+            filter_action="native",
+            sort_action="native",
+            sort_mode="multi",
+            # page_action='none',
+            fixed_rows={'headers': True},
+            style_header={
+                'backgroundColor': 'white',
+                'fontWeight': 'bold'
+            },
+            page_size=20,
+            # style_table={'height': '300px', 'overflowY': 'auto'},
+            style_data_conditional=highlight_special_case_row(),
+            style_cell={
+                # 'overflow': 'hidden',
+                'textOverflow': 'ellipsis',
+                'maxWidth': 0,
+            },
+            dropdown={
+                'div_type': {
+                    'options': [
+                        {'label': i, 'value': i}
+                        for i in ['regular', 'special', 'suspension']
+                    ]
+                },
+                'div_freq': {
+                      'options': [
+                        {'label': str(i), 'value': i}
+                        for i in [1, 2, 4, 12]
+                    ]
+                },
+                'listing_currency': {
+                    'options': [
+                        {'label': i, 'value': i}
+                        for i in cur_list
+                    ]
+                },
+                'payment_currency': {
+                      'options': [
+                        {'label': i, 'value': i}
+                        for i in cur_list
+                    ]
+                },
+                'div_initiation': {
+                      'options': [
+                        {'label': str(i), 'value': i}
+                        for i in [0, 1]
+                    ]
+                },
+                'skipped': {
+                      'options': [
+                        {'label': str(i), 'value': i}
+                        for i in [0, 1]
+                    ]
+                }
+            },
+            row_deletable=True,
+            
+            # tooltip_data=[
+            #     {
+            #         column: {'value': str(value), 'type': 'markdown'}
+            #         for column, value in row.items()
+            #     } for row in data.to_dict('records')
+            # ],
+            # tooltip_duration=None,
+            # Workaround for bug regarding display row dropdown with Boostrap
+            css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}]
+        ), width=10), justify='center'),
+        dbc.Row(html.Div(id='table-dropdown-container')),
     
-])
+        
+        html.Br(),
+        html.Br(),  
+        dbc.Row(html.H3("Modified History"), justify='start'),
+    
+        dbc.Row(dbc.Col(dash_table.DataTable(
+            id='modified-data-rows',
+            columns= [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in data.columns],
+            data=[],
+            # filter_action="native",
+            sort_action="native",
+            sort_mode="multi",
+            page_action="native",
+            page_current= 0,
+            page_size= 30,
+            style_data_conditional=highlight_special_case_row(),
+            style_cell={
+                'overflow': 'hidden',
+                'textOverflow': 'ellipsis',
+                'maxWidth': 0,
+            },
+            row_deletable=True,
+            tooltip_data=[
+                {
+                    column: {'value': str(value), 'type': 'markdown'}
+                    for column, value in row.items()
+                } for row in data.to_dict('records')
+            ],
+            tooltip_duration=None
+        ), width=10), justify='center'),
+        
+        dbc.Row(html.H5('Save changes'), justify='start'),
+    
+        dbc.Row(dbc.Col(dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"), width=10), justify='center'),
+        dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
+        
+        ]),             
+        className="w-85")], fluid=True)
 
 @app.callback(
     Output('output-data-table', 'data'),
