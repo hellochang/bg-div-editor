@@ -4,9 +4,9 @@ Created on Thu Dec 16 12:52:24 2021
 
 @author: Chang.Liu
 """
+
 import json
 import time
-import os
 import dash
 import dash_table
 import dash_core_components as dcc
@@ -22,21 +22,18 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date 
 
+import os
+os.chdir(r'C:\Users\Chang.Liu\Documents\dev\div_data_uploader')
+from bg_data_uploader import *
 import sys
 sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
 from bg_data_importer import DataImporter
 
 data_importer = DataImporter(False)
-def highlight_sepcials(s, columns):
-    sepcials = pd.Series(data=False, index=s.index)
-    sepcials[columns] = s[columns] == 1
-    return ['background-color: yellow' if sepcials.any() else None for v in sepcials]
 
-def highlight_initiation(s, columns):
-    sepcials = pd.Series(data=False, index=s.index)
-    sepcials[columns] = s[columns] > 450
-    return ['background-color: green' if sepcials.any() else None for v in sepcials]
-
+# =============================================================================
+# Div Modifier Helpers
+# =============================================================================
 def massage_div_df(df_):
     df = df_.copy()
     df['num_days_exdate'] = df.groupby('fsym_id')['exdate'].apply(lambda x:x.shift(1) - x).dt.days.fillna(0)
@@ -67,6 +64,242 @@ data = get_raw_data(seclist)
 cur_list = ['USD','CAD','EUR','GBP','JPY']
 
 
+# =============================================================================
+# Div Uploader Helpers
+# =============================================================================
+def plot_dividend_data(fsym_id, alt_cur=None):
+    fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'},
+                                     yaxis=dict(title='Amount'),
+                                     yaxis2=dict(title='Freq', overlaying='y', side='right', range=[0, 14])))
+    new = new_data[new_data['fsym_id'] == fsym_id].copy()
+    new['div_type'] = new['div_type'].str.replace(' ', '')
+    new_regular = new[new['div_type'] != 'special']
+    new_special = new[new['div_type'] == 'special']
+    
+    bg = get_bg_div_data(fsym_id)
+    bg['div_type'] = bg['div_type'].str.replace(' ', '')
+    bg_regular = bg[bg['div_type'] != 'special']
+    bg_special = bg[bg['div_type'] == 'special']
+    
+    already_exist = list(set(bg['exdate']).intersection(set(new['exdate'])))
+    if len(already_exist) > 0:
+        with outs2:
+            clear_output()
+            display(f'Payments on {str(already_exist)} already exists.')
+        return
+    fig.add_trace(go.Scatter(x=new_regular['exdate'], y=new_regular['payment_amount'], mode='lines+markers', name='New Regular', line=dict(color='orchid')))
+    fig.add_trace(go.Scatter(x=new_special['exdate'], y=new_special['payment_amount'], mode='markers',name='New Special', line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=new_special['exdate'], y=new_special['div_freq'], mode='markers', name='Div Freq', line=dict(color='green'), yaxis='y2'))
+    fig.add_trace(go.Scatter(x=bg_regular['exdate'], y=bg_regular['payment_amount'], mode='lines+markers',name='BG Regular', line=dict(color='grey')))
+    fig.add_trace(go.Scatter(x=bg_regular['exdate'], y=bg_regular['div_freq'], mode='markers', name='Div Freq', line=dict(color='green'), yaxis='y2'))
+    if sum(bg_regular['div_initiation']) > 0:
+        fig.add_trace(go.Scatter(x=bg_regular['exdate'], y=bg_regular['div_initiation'].astype(int).replace(0, np.nan), mode='markers',name='BG Init', line=dict(color='dodgerblue')))
+    fig.add_trace(go.Scatter(x=bg_special['exdate'], y=bg_special['payment_amount'], mode='markers',name='BG Special', line=dict(color='black')))
+    
+    if alt_cur is not None:
+        fig.add_trace(go.Scatter(x=alt_cur['exdate'], y=alt_cur['payment_amount'], mode='lines+markers',name='Alt Cur', line=dict(color='purple')))
+    
+    if new.shape[0]>1:
+        fig.update_layout(shapes=[dict(type="rect",xref="x",yref="paper",x0=new['exdate'].min(),y0=0,x1=new['exdate'].max(),y1=1,fillcolor="LightSalmon",opacity=0.5,layer="below",line_width=0)])
+    
+    fig.show()
+def compare_new_data_with_factset(secid, factset=None):
+    if factset is None:
+        factset = factset_new_data(secid)
+    if check_exist:
+        factset = factset[factset['exdate'] <= update_date]
+    bbg = new_data[new_data['fsym_id']==secid].copy()
+    new_data_comparison = pd.merge(bbg, factset, how='outer', on=['fsym_id','exdate','div_type'], suffixes=('_bbg','_factset'))
+    new_data_comparison = new_data_comparison.sort_values(['exdate'])
+    new_data_comparison = new_data_comparison.reset_index(drop=True)
+    new_data_comparison = new_data_comparison[new_data_comparison.filter(regex='fsym_id|exdate|payment_date|amount').columns]
+    new_data_comparison['check_amount'] = np.where(abs(new_data_comparison['payment_amount_factset']-new_data_comparison['payment_amount_bbg'])>0.001, 'Mismatch', 'Good')
+    new_data_comparison['check_payment_date'] = np.where(new_data_comparison['payment_date_factset']!=new_data_comparison['payment_date_bbg'], 'Mismatch', 'Good')
+    return new_data_comparison
+
+def plot_data(x):
+    global check_exist
+    check_exist = check_existence(select.value)
+    with outs2:
+            clear_output()
+            display(basic_info(select.value, new_data))
+    if not check_exist:
+        with outs:
+            clear_output()
+            print("This is a new name.")
+            bbg = new_data[new_data['fsym_id']==select.value].copy()
+            factset = factset_new_data(select.value)
+            comparison = compare_new_data_with_factset(select.value, factset)
+            plot_dividend_data_comparison(factset, bbg)
+            display(HTML(comparison.to_html()))
+    else:
+        (last_cur, fstest_cur) = dividend_currency(select.value, new_data)
+        with outs2:
+            df = compare_new_data_with_factset(select.value)
+            if fstest_cur != last_cur:
+                print(f'Possible currency change. Last payment:{last_cur}. Factset payment:{fstest_cur}')
+            display(HTML(df.to_html()))
+        with outs:
+            clear_output()
+            df = compare_new_data_with_factset(select.value)
+            new = new_data[new_data['fsym_id']==select.value].copy()
+            new['listing_currency'] = fstest_cur
+            new['payment_currency'] = last_cur
+            display('New Dividend Data')
+            display(HTML(new.to_html()))
+            plot_dividend_data(select.value)
+            
+def print_new_data_comparison(x):
+    df = compare_new_data_with_factset(select.value)
+    with outs:
+        clear_output()
+        display(HTML(df.to_html()))
+
+def prepare_bbg_data(fsym_id, alt_cur='', regular_skipped='regular'):
+    if regular_skipped == 'regular':
+        new = new_data[new_data['fsym_id']==fsym_id].copy()
+    elif regular_skipped == 'skipped' :
+        new = skipped[skipped['fsym_id']==fsym_id].copy()
+        
+    (last_cur, fstest_cur) = dividend_currency(fsym_id, new_data)
+    if last_cur is None:
+        last_cur = fstest_cur
+#     new['listing_currency'] = fstest_cur
+    if alt_cur != '':
+        new['payment_currency'] = alt_cur.upper()
+    else:
+        new['payment_currency'] = last_cur
+    return new
+
+def upload_new_data_to_database(x):
+    new = prepare_bbg_data(select.value, textbox.value)
+    upload_to_db(new)
+    with outs2:
+        clear_output()
+    with outs:
+        clear_output()
+        display('Uploaded')
+        textbox.value=''
+#         plot_dividend_data(select.value)
+
+def upload_to_database_CAD(x):
+    new = prepare_bbg_data(select.value,'CAD')
+    upload_to_db(new)
+    with outs2:
+        clear_output()
+    with outs:
+        clear_output()
+        display('Uploaded')
+        textbox.value=''
+        
+def upload_to_database_USD(x):
+    new = prepare_bbg_data(select.value,'USD')
+    upload_to_db(new)
+    with outs2:
+        clear_output()
+    with outs:
+        clear_output()
+        display('Uploaded')
+        textbox.value=''
+        
+def upload_skipped_to_database(x):
+    new = prepare_bbg_data(select.value, textbox.value, 'skipped')
+    upload_to_db(new)
+    with outs2:
+        clear_output()
+    with outs:
+        clear_output()
+        display('Uploaded')
+        textbox.value=''
+
+def check_split_history(x):
+    with outs2:
+        query = f"""select 
+                    fsym_id,p_split_date,p_split_factor, 
+                    exp(sum(log(p_split_factor))  OVER (ORDER BY p_split_date desc)) cum_split_factor 
+                    from fstest.fp_v2.fp_basic_splits where fsym_id= '{select.value}'
+                    order by p_split_date
+                """
+        df = data.load_data(query)
+        display(HTML(df.to_html()))
+        
+def plot_db(x):
+    query = f"select * from fstest.dbo.bg_div where fsym_id ='{select.value}'"
+    df = data.load_data(query)
+    with outs:
+        clear_output()
+        plot_generic_dividend_data(df)
+        display(HTML(df.to_html()))
+
+def plot_bbg(x):
+    df = prepare_bbg_data(select.value, textbox.value)
+    with outs2:
+        clear_output()
+        plot_generic_dividend_data(df)
+        display(HTML(df.to_html()))
+        
+def plot_generic_dividend_data(df):
+    fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+    df['div_type'] = df['div_type'].str.replace(' ', '')
+    df_regular = df[df['div_type'] == 'regular']
+    df_special = df[df['div_type'] == 'special']
+    fig.add_trace(go.Scatter(x=df_regular['exdate'], y=df_regular['payment_amount'], mode='lines+markers', name='Regular', line=dict(color='orchid')))
+    fig.add_trace(go.Scatter(x=df_special['exdate'], y=df_special['payment_amount'], mode='markers',name='Special', line=dict(color='black')))
+    if df_regular['div_initiation'].sum() > 0:
+        fig.add_trace(go.Scatter(x=df_regular['exdate'], y=df_regular['div_initiation'].astype(int).replace(0, np.nan), mode='markers',name='BG Init', line=dict(color='dodgerblue')))
+    if 'suspension' in df['div_type'].values:
+        df_suspension = df[df['div_type'] == 'suspension']
+        fig.add_trace(go.Scatter(x=df_suspension['exdate'], y=[df_regular['payment_amount'].max()]*df_suspension.shape[0], mode='markers',name='BG Suspension', line=dict(color='Red')))
+    fig.show()
+        
+def plot_comparison(x):
+    bbg = new_data[new_data['fsym_id']==select.value].copy()
+    query = f"select * from fstest.dbo.bg_div where fsym_id ='{select.value}'"
+    bg = data.load_data(query)
+    with outs:
+        clear_output()
+        plot_dividend_data_comparison(bg, bbg)
+        
+def plot_dividend_data_comparison(bg, bbg):
+    fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+    bg['div_type'] = bg['div_type'].str.replace(' ', '')
+    bg_regular = bg[bg['div_type'] == 'regular']
+    bg_special = bg[bg['div_type'] == 'special']
+    
+    bbg['div_type'] = bbg['div_type'].str.replace(' ', '')
+    bbg_regular = bbg[bbg['div_type'] == 'regular']
+    bbg_special = bbg[bbg['div_type'] == 'special']
+    
+    fig.add_trace(go.Scatter(x=bg_regular['exdate'], y=bg_regular['payment_amount'], mode='lines+markers', name='BG Regular', line=dict(color='orchid')))
+    fig.add_trace(go.Scatter(x=bbg_regular['exdate'], y=bbg_regular['payment_amount'], mode='lines+markers', name='BBG Regular', line=dict(color='blue')))
+    fig.add_trace(go.Scatter(x=bg_special['exdate'], y=bg_special['payment_amount'], mode='markers',name='BG Special', line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=bbg_special['exdate'], y=bbg_special['payment_amount'], mode='markers',name='BBG Special', line=dict(color='black')))
+    fig.show()
+    
+def show_all_goods(x):
+    with outs:
+        clear_output()
+        display(HTML(all_goods.to_html()))
+    select.options = sorted(all_goods['fsym_id'].to_list())
+        
+def show_mismatch(x):
+    with outs:
+        clear_output()
+    with outs2:
+        clear_output()
+    select.options = sorted(manual_list)
+
+def show_skipped(x):
+    with outs:
+        clear_output()
+        select.options = list(skipped['fsym_id'].unique())
+        display(HTML(skipped.to_html()))
+    with outs2:
+        clear_output()    
+# =============================================================================
+# Dash app
+# =============================================================================
+
 app = dash.Dash(
     __name__,
     meta_tags=[{"name": "viewport", 
@@ -96,9 +329,10 @@ def highlight_special_case_row():
             'color': 'white'
         }
     ]
-# App Layout
-app.layout = dbc.Container([
-    dbc.Card(
+     
+     
+def div_editor():
+    return     dbc.Card(
         dbc.CardBody([
         
         html.Br(),
@@ -244,7 +478,12 @@ app.layout = dbc.Container([
         dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
         
         ]),             
-        className="w-85")], fluid=True)
+        className="w-85")
+
+
+# App Layout
+app.layout = dbc.Container([
+    div_editor()], fluid=True)
 
 @app.callback(
     Output('output-data-table', 'data'),
@@ -271,16 +510,6 @@ def update_data_table(modified_datatable, datatable, rows, rows_prev):
     # df[df['fsym_id'] == fsym_id] = modified_df
     res = pd.concat([df, modified_df]).to_dict('records')
     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
-
-
-# @app.callback(
-#     Output('data-table', 'data'),
-#     Input('modified-data-rows', 'data'),
-#     State('modified-data-rows', 'data_previous'),
-#     State('data-table', 'data'))
-# def undo_delete_data_table(rows, rows_prev, datatable):
-#     return datatable + [row for row in rows_prev if row not in rows]
-
 
 @app.callback(
     # Output('data-table', 'data'),
