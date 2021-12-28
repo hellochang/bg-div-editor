@@ -22,8 +22,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date 
 
-import os
-os.chdir(r'C:\Users\Chang.Liu\Documents\dev\div_data_uploader')
+# import os
+# os.chdir(r'C:\Users\Chang.Liu\Documents\dev\div_data_uploader')
 from bg_data_uploader import *
 import sys
 sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
@@ -295,7 +295,8 @@ def show_skipped(x):
         select.options = list(skipped['fsym_id'].unique())
         display(HTML(skipped.to_html()))
     with outs2:
-        clear_output()    
+        clear_output()
+
 # =============================================================================
 # Dash app
 # =============================================================================
@@ -311,28 +312,129 @@ fsym_id = data['fsym_id'].unique()
 
 print(data.dtypes)
 def highlight_special_case_row():
-    return [
-        {
+    return [{
             'if': {
                 'filter_query': f'{{div_type}} = {case}',
             },
             'backgroundColor': color,
             'color': 'white'
         } for case, color in zip(['special', 'skipped', 'suspension'], ['#fc8399', '#53cfcb', '#fbaea0'])
-    ] + \
-     [
-        {
+        ] + \
+        [{
             'if': {
                 'filter_query': '{div_initiation} = 1',
             },
             'backgroundColor': '#fc8399',
             'color': 'white'
-        }
-    ]
-     
-     
+        }]
+seclist = []#TODO combine with the other Card component later
+manual_list = []
+skipped = pd.DataFrame([])
+@app.callback(
+    Output('new_data-data-table', 'data'),
+    # Output('load-data-msg', 'value'),
+    Input('date-picker', 'date'),
+    State('index-only-radio', 'value'))
+def load_data(update_date, index_flag):
+    # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
+    # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
+    # if update_date == "":
+    #     update_date = monthend_date
+    print(f'update_date:{update_date}')
+    
+    main_dir = Path('I:\Scheduled_Jobs')
+    f_date = update_date.replace('-','')#TODO!!!!!!!!!
+    new_data = pd.read_parquet(main_dir /'output'/ Path(f"new_dvd_data_{f_date}.parquet"))
+    update_list = pd.read_csv(main_dir / Path(f"input\sec_list_{f_date}.csv"))
+    # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
+    #TODO don't think splits is used anywhere. double check later
+    
+    (new_data, skipped, pro_rata, splits) = \
+        preprocess_bbg_data(new_data, update_list, index_flag, update_date)
+    new_data = bbg_data_single_security(new_data)
+    skipped = process_skipped(skipped)
+    seclist = sorted(list(new_data['fsym_id'].unique()))
+    (manual_list, all_goods) = bulk_upload(new_data, update_date, new_data)
+    print('Loaded')#TODO
+    return new_data.to_dict('records')
+        
+def div_uploader():
+    return dbc.Card(
+        dbc.CardBody([
+            # Hidden datatable for storing data
+            html.Div([dash_table.DataTable(
+                id='new_data-data-table',
+                columns=[{'name': i, 'id':i} for i in data.columns],
+                data=data.to_dict('records')
+            )], style= {'display': 'none'}),
+        
+            # # Hidden datatable for storing data
+            # html.Div([dash_table.DataTable(
+            #     id='skipped-data-table',
+            #     columns=[{'name': i, 'id':i} for i in data.columns],
+            #     data=data.to_dict('records')
+            # )], style= {'display': 'none'}),
+            
+            # # Hidden datatable for storing data
+            # html.Div([dash_table.DataTable(
+            #     id='all_good-data-table',
+            #     columns=[{'name': i, 'id':i} for i in data.columns],
+            #     data=data.to_dict('records')
+            # )], style= {'display': 'none'}),
+            
+            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
+            
+            dcc.DatePickerSingle(
+                id='date-picker',
+                min_date_allowed=date(2000, 8, 5),
+                max_date_allowed=datetime.today(),
+                # initial_visible_month=date(2017, 8, 5),
+                date=(datetime.today() + pd.offsets.MonthEnd(0)),
+                # disabled_days=,
+                clearable =True),
+            
+            dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
+            dcc.RadioItems(
+                id='index-only-radio',
+                options=[
+                    {'label': 'Yes', 'value': True},
+                    {'label': 'No', 'value': False}
+                ],
+                value=True,
+                labelStyle={'display': 'inline-block'}),
+            
+            html.Hr(),
+            dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
+            dbc.Row(dbc.Col(
+                dcc.Dropdown(
+                    id="upload-fsym-id-dropdown",
+                    options=[{"label": 'All', "value": 'All'}] +\
+                        [{"label": i, "value": i} for i in fsym_id],
+                    value=fsym_id[0]), width=10), justify='center'),
+            dbc.Row(dbc.Col(
+                dcc.Dropdown(
+                    id="currency-dropdown",
+                    options=[{"label": 'All', "value": 'All'}] +\
+                        [{"label": i, "value": i} for i in cur_list],
+                    value=fsym_id[0]), width=10), justify='center'),
+            dbc.Row(),
+            dbc.Row(),
+            html.Details([
+                html.Summary('Label of the item'),
+                html.Div('Contents')
+            ]),
+            dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
+                                       children='Upload skipped', color='success'), 
+                            width=2), justify='end'),
+            html.Br(),
+            dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
+                                       children='Upload to DB', color='success'), 
+                            width=2), justify='end'),
+            ]))
+
+    
 def div_editor():
-    return     dbc.Card(
+    return dbc.Card(
         dbc.CardBody([
         
         html.Br(),
@@ -362,12 +464,12 @@ def div_editor():
         dbc.Row(dbc.Col(dash_table.DataTable(
             id='output-data-table',
             columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
-          [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
+            [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
             [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
-            [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric', 'editable': True}]+
-                [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} 
+            [{'name': 'payment_amount', 'id': 'payment_amount', 'type': 'numeric', 'editable': True}] +
+            [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} 
                    for i in ['div_type','div_freq', 'div_initiation', 'skipped']] +
-                [{'name': i, 'id': i, 'type': 'numeric', 'editable': True} for i in [ 'num_days_exdate',
+            [{'name': i, 'id': i, 'type': 'numeric', 'editable': True} for i in [ 'num_days_exdate',
                'num_days_paydate']],
                 
             # data=[],
@@ -483,7 +585,7 @@ def div_editor():
 
 # App Layout
 app.layout = dbc.Container([
-    div_editor()], fluid=True)
+    div_uploader(), html.Br(), div_editor()], fluid=True)
 
 @app.callback(
     Output('output-data-table', 'data'),
@@ -540,7 +642,7 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
         Input("save-button", "n_clicks"),
         State("data-table", "data")
         )
-def export_data(nclicks, modified_data): 
+def export_modified_data(nclicks, modified_data): 
     if nclicks == 0:
         raise PreventUpdate
     else:
