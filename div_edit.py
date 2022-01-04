@@ -25,9 +25,9 @@ from datetime import datetime, date
 # import os
 # os.chdir(r'C:\Users\Chang.Liu\Documents\dev\div_data_uploader')
 from bg_data_uploader import *
-import sys
-sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
-from bg_data_importer import DataImporter
+# import sys
+# sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
+# from bg_data_importer import DataImporter
 
 data_importer = DataImporter(False)
 
@@ -248,8 +248,7 @@ def highlight_special_case_row():
             'color': 'white'
         }]
 seclist = []#TODO combine with the other Card component later
-manual_list = []
-skipped = pd.DataFrame([])
+
 @app.callback(
     Output('new-data-data-table', 'data'),
     Output('new-data-data-table', 'columns'),
@@ -259,8 +258,12 @@ skipped = pd.DataFrame([])
     Output('skipped-data-table', 'columns'),
     Output('mismatch-data-table', 'data'),
     Output('mismatch-data-table', 'columns'),
+    
+    Output('all-goods-dropdown', 'options'),
+    # Output('skipped-dropdown', 'options'),
+    Output('mismatch-dropdown', 'options'),    
     # Output('load-data-msg', 'value'),
-    Input('date-picker', 'date'),
+    Input('div-date-picker', 'date'),
     Input('index-only-radio', 'value'))
 def load_data(update_date, index_flag):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
@@ -269,13 +272,16 @@ def load_data(update_date, index_flag):
     #     update_date = monthend_date
     print(f'update_date:{update_date}')
     
-    main_dir = Path('S:\Scheduled_Jobs')
-    # f_date = update_date.to_datetime().strftime('%Y%m%d')#TODO!!!!!!!!!
     f_date = update_date.replace('-','')#TODO!!!!!!!!!
 
     # f_date = update_date.strftime('%Y%m%d')#TODO!!!!!!!!!
-    new_data = pd.read_parquet(main_dir /'output'/ Path(f"new_dvd_data_{f_date}.parquet"), engine='pyarrow')
-    update_list = pd.read_csv(main_dir / Path(f"input\sec_list_{f_date}.csv"))
+    # with open(f'S:/Scheduled_Jobs/output/new_dvd_data_{f_date}.parquet', 'rb') as f:
+    #     new_data = pd.read_parquet(f, engine='pyarrow')
+    # new_data = pd.read_parquet(f'S:/Scheduled_Jobs/output/new_dvd_data_{f_date}.parquet')
+    
+    new_data=pd.read_parquet(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\output\new_dvd_data_{f_date}.parquet')
+    print(new_data)
+    update_list = pd.read_csv(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\input\sec_list_{f_date}.csv')
     # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
     #TODO don't think splits is used anywhere. double check later
     
@@ -286,28 +292,33 @@ def load_data(update_date, index_flag):
     skipped = process_skipped(skipped)
     seclist = sorted(list(new_data['fsym_id'].unique()))
     (manual_list, all_goods) = bulk_upload(new_data, update_date, new_data)
+    all_goods = {} if all_goods is None else all_goods.to_dict('records')
+    all_goods_col = [] if all_goods == {} else [{'name': i, 'id':i} for i in all_goods.columns]
     print('Loaded')#TODO
     return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
-           all_goods.to_dict('records'), [{'name': i, 'id':i} for i in all_goods.columns],\
-        skipped.to_dict('records'), [{'name': i, 'id':i} for i in skipped.columns],\
-            manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns]
+           all_goods, all_goods_col,\
+           skipped.to_dict('records'), [{'name': i, 'id':i} for i in skipped.columns],\
+        manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns],\
+                [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())],\
+                    [{"label": i, "value": i} for i in sorted(manual_list)]
+                # [{"label": i, "value": i} for i in cur_list],
+
+
 
 @app.callback(
-    Output('basic-info', 'data'),
+    Output('basic-info', 'value'),
     Output('comparison-data-table', 'data'),
     Output('comparison-data-table', 'columns'),
     Output('fsym-id-graph', 'figure'),
     # Output('load-data-msg', 'value'),
-    Input('upload-fsym-id-dropdown', 'value'),
+    Input('all-goods-dropdown', 'value'),
     # State('upload-fsym-id-dropdown', 'value'),#TODO
     State('new-data-data-table', 'data'))
 def plot_data(fsym_id, update_date, new_data):
     new_data = pd.Dataframe(new_data)
     global check_exist
     check_exist = check_existence(fsym_id)
-    with outs2:
-            clear_output()
-            display(basic_info(fsym_id, new_data))
+    basic_info = basic_info(fsym_id, new_data)
     if not check_exist:
         with outs:
             clear_output()
@@ -332,18 +343,18 @@ def plot_data(fsym_id, update_date, new_data):
             new['payment_currency'] = last_cur
             display('New Dividend Data')
             display(HTML(new.to_html()))
-            plot_dividend_data(fsym_id, new_data)
+            fig = plot_dividend_data(fsym_id, new_data)
     return basic_info, comparison.to_dict('records'),[{'name': i, 'id':i} for i in comparison.columns], fig
 
 @app.callback(
     Output('factset-graph', 'figure'),
     # Output('load-data-msg', 'value'),
-    Input('upload-fsym-id-dropdown', 'value'),
+    Input('all-goods-dropdown', 'value'),
     State('new-data-data-table', 'data'))
 def plot_comparison(fsym_id, new_data):
     bbg = new_data[new_data['fsym_id']==fsym_id].copy()
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{select.value}'"
-    bg = data.load_data(query)
+    bg = data_importer.load_data(query)
     fig = plot_dividend_data_comparison(bg, bbg)
     return fig
 
@@ -353,7 +364,7 @@ def plot_comparison(fsym_id, new_data):
     Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
     Input('currency-dropdown', 'value'),
-    State('upload-fsym-id-dropdown', 'value'),
+    State('all-goods-dropdown', 'value'),
     State('new-data-data-table', 'data'))
 def plot_bbg(currency, fsym_id, new_data):
     df = prepare_bbg_data(fsym_id, new_data, currency)
@@ -372,7 +383,7 @@ def plot_bbg(currency, fsym_id, new_data):
     Input('currency-dropdown', 'value'))
 def plot_db(fsym_id):
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
-    df = data.load_data(query)
+    df = data_importer.load_data(query)
     fig = plot_generic_dividend_data(df)
     return fig, df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
 
@@ -380,7 +391,7 @@ def plot_db(fsym_id):
     Output('split-data-table', 'data'),
     Output('split-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
-    Input('upload-fsym-id-dropdown', 'value'))
+    Input('all-goods-dropdown', 'value'))
 def check_split_history(fsym_id):
     query = f"""select 
                 fsym_id,p_split_date,p_split_factor, 
@@ -388,12 +399,86 @@ def check_split_history(fsym_id):
                 from fstest.fp_v2.fp_basic_splits where fsym_id= '{fsym_id}'
                 order by p_split_date
             """
-    df = data.load_data(query)
+    df = data_importer.load_data(query)
     return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
   
 
-def div_uploader():
-    return dbc.Card(
+
+def core_functionalities():
+        return dbc.Card(
+            dbc.CardBody([
+                dbc.Row(dbc.Col([])),
+                dbc.Row(dbc.Col([])),
+
+                dcc.Graph(id='fsym-id-graph'),
+    
+                html.Details([
+                    html.Summary('Compare with factset'),
+                    dcc.Graph(id='factset-graph'),
+                ]),
+                
+                html.Details([
+                    html.Summary('Bloomberg data'),
+                    dcc.Graph(id='bbg-graph'),
+                    html.Div([dash_table.DataTable(
+                        id='bbg-data-table',
+                    )]),
+    
+                ]),
+    
+                html.Details([
+                    html.Summary('BG Data'),
+                    dcc.Graph(id='bg-db-graph'),
+                    html.Div([dash_table.DataTable(
+                        id='bg-db-data-table',
+                    )]),               
+                ]),
+                
+                html.Details([
+                    html.Summary('Split History'),
+                    html.Div([dash_table.DataTable(
+                        id='split-data-table',)])
+                    ]),
+            ]))
+
+mismatch_content = dbc.Card(
+    dbc.CardBody(
+        [
+            html.P("This is tab 2!", className="card-text"),
+            dbc.Button("Don't click here", color="danger"),
+        ]
+    ),
+    className="mt-3",
+)
+
+skipped_content = dbc.Card(
+    dbc.CardBody(
+        [
+            html.P("This is tab 2!", className="card-text"),
+            dbc.Button("Don't click here", color="danger"),
+            
+                html.Details([
+                html.Summary('Show Mismatch'),
+                dcc.Dropdown(
+                    id="mismatch-dropdown"),
+                html.Div([dash_table.DataTable(
+                    id='mismatch-data-table',
+                )]),
+                ]),
+                
+            html.Details([
+                html.Summary('Showed Skipped'),
+                html.Div([dash_table.DataTable(
+                    id='skipped-data-table',
+                )])
+            ]),
+        ]
+    ),
+    className="mt-3",
+)
+
+    
+all_goods_content = dbc.Card(
         dbc.CardBody([
             # Hidden datatable for storing data
             html.Div([dash_table.DataTable(
@@ -402,22 +487,48 @@ def div_uploader():
                 # data=data.to_dict('records')
             )], style= {'display': 'none'}),
 
-            # Hidden datatable for storing data
             html.Div([dash_table.DataTable(
                 id='comparison-data-table',
             )]),
-                
 
-            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
+            dbc.Row(),
+            dbc.Row(),
             
+            html.H2('Show All Goods'),
+            dcc.Dropdown(
+            id="all-goods-dropdown"),
+            # options=[{"label": 'All', "value": 'All'}] +\
+            #     [{"label": i, "value": i} for i in cur_list],
+            # value=cur_list[0]),
+            html.Div([dash_table.DataTable(
+                id='all-goods-data-table',
+            )]),
+            
+            core_functionalities(),
+            
+            dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
+                                       children='Upload skipped', color='success'), 
+                            width=2), justify='end'),
+            html.Br(),
+            dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
+                                       children='Upload to DB', color='success'), 
+                            width=2), justify='end'),
+            ]))
+
+def top_select_panel():
+    return dbc.Card(
+        dbc.CardBody([
+            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
+    
             dcc.DatePickerSingle(
-                id='date-picker',
+                id='div-date-picker',
                 min_date_allowed=date(2000, 8, 5),
-                max_date_allowed=datetime.today(),
+                max_date_allowed=date.today(),
                 # initial_visible_month=date(2017, 8, 5),
-                date=(datetime.today() + pd.offsets.MonthEnd(0)),
+                date = date(2021, 12, 31),
+                # date=(datetime.today() + pd.offsets.MonthEnd(0)),
                 # disabled_days=,
-                display_format='YYYYMMDD',
+                # display_format='YYYYMMDD',
                 clearable =True),
             
             dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
@@ -431,88 +542,17 @@ def div_uploader():
                 labelStyle={'display': 'inline-block'}),
             
             html.Hr(),
-            dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
-            dbc.Row(dbc.Col(
-                dcc.Dropdown(
-                    id="upload-fsym-id-dropdown",
-                    options=[{"label": 'All', "value": 'All'}] +\
-                        [{"label": i, "value": i} for i in fsym_id],
-                    value=fsym_id[0]), width=10), justify='center'),
-            dbc.Row(dbc.Col(
-                dcc.Dropdown(
-                    id="currency-dropdown",
-                    options=[{"label": 'All', "value": 'All'}] +\
-                        [{"label": i, "value": i} for i in cur_list],
-                    value=cur_list[0]), width=10), justify='center'),
-            dbc.Row(),
-            dbc.Row(),
-            dcc.Graph(id='fsym-id-graph'),
+            ]), className='mt-3')
 
-            html.Details([
-                html.Summary('Compare with factset'),
-                dcc.Graph(id='factset-graph'),
-            ]),
-            html.Details([
-                html.Summary('Bloomberg data'),
-                dcc.Graph(id='bbg-graph'),
-                html.Div([dash_table.DataTable(
-                    id='bbg-data-table',
-                )]),
 
-            ]),            
+def div_uploader():
+   return dbc.Container([
+       dbc.Tabs([
+           dbc.Tab(all_goods_content, label="All goods"),
+           dbc.Tab(mismatch_content, label="Mismatched"),
+           dbc.Tab(skipped_content, label="Skipped")]),
+       ])
 
-            html.Details([
-                html.Summary('BG Data'),
-                dcc.Graph(id='bg-db-graph'),
-                html.Div([dash_table.DataTable(
-                    id='bg-db-data-table',
-                )]),               
-            ]),
-            html.Details([
-                html.Summary('Split History'),
-                html.Div([dash_table.DataTable(
-                    id='split-data-table',
-                )])
-            ]),
-            
-            html.Details([
-                html.Summary('Show All Goods'),
-                    dcc.Dropdown(
-                    id="all-goods-dropdown"),
-                    # options=[{"label": 'All', "value": 'All'}] +\
-                    #     [{"label": i, "value": i} for i in cur_list],
-                    # value=cur_list[0]),
-                html.Div([dash_table.DataTable(
-                    id='all-goods-data-table',
-                )])
-            ]),
-                html.Details([
-                html.Summary('Show Mismatch'),
-                dcc.Dropdown(
-                    id="mismatch-dropdown"),
-                    # options=[{"label": 'All', "value": 'All'}] +\
-                        # [{"label": i, "value": i} for i in cur_list],
-                    # value=cur_list[0]),
-                html.Div([dash_table.DataTable(
-                    id='mismatch-data-table',
-                )])
-            ]),
-            html.Details([
-                html.Summary('Showed Skipped'),
-                html.Div([dash_table.DataTable(
-                    id='skipped-data-table',
-                )])
-            ]),
-            dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
-                                       children='Upload skipped', color='success'), 
-                            width=2), justify='end'),
-            html.Br(),
-            dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
-                                       children='Upload to DB', color='success'), 
-                            width=2), justify='end'),
-            ]))
-
-    
 def div_editor():
     return dbc.Card(
         dbc.CardBody([
@@ -665,6 +705,7 @@ def div_editor():
 
 # App Layout
 app.layout = dbc.Container([
+    top_select_panel(),
     div_uploader(),
     html.Br(), div_editor()
     ], fluid=True)
