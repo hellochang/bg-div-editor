@@ -343,7 +343,7 @@ def load_data(update_date, index_flag, selected_review_option):
     Input('fsym-id-dropdown', 'value'),
     State('div-date-picker', 'date'),#TODO
     State('new-data-data-table', 'data'))
-def basic_info(fsym_id, update_date, new_data):
+def get_basic_info(fsym_id, update_date, new_data):
     new_data = pd.DataFrame(new_data)
     global check_exist
     check_exist = check_existence(fsym_id)
@@ -396,7 +396,7 @@ def plot_comparison(fsym_id, new_data):
     State('new-data-data-table', 'data'))
 def plot_bbg(fsym_id, new_data):
     new_data = pd.DataFrame(new_data)
-    # df = prepare_bbg_data(fsym_id, new_data, currency)
+    df = prepare_bbg_data(fsym_id, new_data)
     
     # with outs2:
     #     clear_output()
@@ -432,7 +432,7 @@ def check_split_history(fsym_id):
             """
     df = data_importer.load_data(query)
     data = df.to_dict('records') if df is not None else []
-    cols = [{'name': i, 'id':i} for i in df.columns] if data is not None else []
+    cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
     return data, cols
 
 
@@ -600,7 +600,7 @@ all_goods_content = dbc.Card(
             
 
                     
-        html.H2('Show All Goods'),
+        # html.H2('Show All Goods'),
         dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
         # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
         # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
@@ -634,9 +634,9 @@ def top_select_panel():
                 # disabled_days=,
                 # display_format='YYYYMMDD',
                 clearable =True),
-            
+            html.Br(),
             dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
-            dcc.RadioItems(# TODO needs to fix the radio
+            dbc.RadioItems(# TODO needs to fix the radio
                 id='index-only-radio',
                 options=[
                     {'label': 'Yes', 'value': 1},
@@ -832,7 +832,7 @@ app.layout = dbc.Container([
 @app.callback(
     Output('output-data-table', 'data'),
     Input('fsym-id-dropdown', 'value'),
-    State('data-table', 'data'))
+    State('new-data-data-table', 'data'))
 def filter_fysm_id(selected, datatable):
     if selected == 'All':
         return datatable
@@ -843,7 +843,7 @@ def filter_fysm_id(selected, datatable):
 @app.callback(
     Output('data-table', 'data'),
     Input('output-data-table', 'data'),
-    State('data-table', 'data'),
+    State('new-data-data-table', 'data'),
     State('modified-data-rows', 'data'),
     State('modified-data-rows', 'data_previous'))
 def update_data_table(modified_datatable, datatable, rows, rows_prev):
