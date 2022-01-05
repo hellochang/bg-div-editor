@@ -261,9 +261,10 @@ seclist = []#TODO combine with the other Card component later
     
     Output('fsym-id-dropdown', 'options'),
     Output('fsym-id-dropdown', 'value'),
-    Output('all-goods-msg', 'is_open'),
-    Output('mismatch-msg', 'is_open'),
-    Output('skipped-msg', 'is_open'),
+    # Output('all-goods-msg', 'is_open'),
+    Output('no-data-msg', 'children'),
+    Output('no-data-msg', 'style'),
+    # Output('skipped-msg', 'is_open'),
     # Output('skipped-data-table-div', 'style'),
     # Output('skipped-dropdown', 'options'),
     # Output('mismatch-dropdown', 'options'),    
@@ -271,7 +272,7 @@ seclist = []#TODO combine with the other Card component later
     Input('div-date-picker', 'date'),
     Input('index-only-radio', 'value'),
     Input('view-type-radio', 'value'))
-def load_data(update_date, index_flag, selected_option):
+def load_data(update_date, index_flag, selected_review_option):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
     # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
     # if update_date == "":
@@ -295,26 +296,29 @@ def load_data(update_date, index_flag, selected_option):
     # has_all_goods = not all_goods.isempty()
     #  = not manual_list.isempty()
     # has_skipped = not skipped.isempty()
-    has_all_goods = not None
-    has_skipped = not None
-    has_mismatch = not None
+    has_all_goods = all_goods is not None
+    has_skipped = skipped is not None
+    has_mismatch = manual_list is not None
     all_goods = {} if all_goods is None else all_goods.to_dict('records')
     all_goods_col = [] if all_goods == {} else [{'name': i, 'id':i} for i in all_goods.columns]
     
-    if selected_option == 'all_goods':
+    if selected_review_option == 'all_goods':
         fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_all_goods else []
-    if selected_option == 'mismatch': 
+        has_selected = has_all_goods
+    if selected_review_option == 'mismatch': 
         fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_mismatch else []
-    if selected_option == 'skipped': 
+        has_selected = has_mismatch
+    if selected_review_option == 'skipped': 
         fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_skipped else []
+        has_selected = has_skipped
 
     print('Loaded')#TODO
-    print(all_goods)
-    print(manual_list)
-    print(skipped['fsym_id'].unique())
+    # print(all_goods)
+    # print(manual_list)
+    # print(skipped['fsym_id'].unique())
     return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
            fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
-           has_all_goods, has_mismatch, has_skipped
+           f'There is no entry to be reviewed for {selected_review_option}' if not has_selected else f'Data loaded', {'display': 'none'} if not has_selected else {}
            # {'display': 'none'} if not has_skipped else {}
                           # all_goods, all_goods_col,\
                               
@@ -339,17 +343,17 @@ def load_data(update_date, index_flag, selected_option):
     Input('fsym-id-dropdown', 'value'),
     State('div-date-picker', 'date'),#TODO
     State('new-data-data-table', 'data'))
-def plot_data(fsym_id, update_date, new_data):
+def basic_info(fsym_id, update_date, new_data):
     new_data = pd.DataFrame(new_data)
     global check_exist
     check_exist = check_existence(fsym_id)
     basic_info_str = basic_info(fsym_id, new_data)
     if not check_exist:
-        comparison_msg = "This is a new name."
-        bbg = new_data[new_data['fsym_id']==fsym_id].copy()
+        comparison_msg = "This is a newly added."
+        new = new_data[new_data['fsym_id']==fsym_id].copy()
         factset = factset_new_data(fsym_id)
         comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset)
-        fig = plot_dividend_data_comparison(factset, bbg)
+        fig = plot_dividend_data_comparison(factset, new)
         # display(HTML(comparison.to_html()))
     else:
         (last_cur, fstest_cur) = dividend_currency(fsym_id, new_data)
@@ -367,7 +371,7 @@ def plot_data(fsym_id, update_date, new_data):
         comparison_msg = 'New Dividend Data'
         # display(HTML(new.to_html()))
         fig = plot_dividend_data(fsym_id, new_data)
-    return basic_info_str, comparison.to_dict('records'),[{'name': i, 'id':i} for i in comparison.columns],\
+    return basic_info_str, comparison.to_dict('records'), [{'name': i, 'id':i} for i in comparison.columns],\
          new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns], fig, comparison_msg
 
 @app.callback(
@@ -385,19 +389,20 @@ def plot_comparison(fsym_id, new_data):
 
 @app.callback(
     Output('bbg-graph', 'figure'),
-    Output('bbg-data-table', 'data'),
-    Output('bbg-data-table', 'columns'),
+    # Output('bbg-data-table', 'data'),
+    # Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
-    Input('currency-dropdown', 'value'),
-    State('fsym-id-dropdown', 'value'),
+    Input('fsym-id-dropdown', 'value'),
     State('new-data-data-table', 'data'))
-def plot_bbg(currency, fsym_id, new_data):
+def plot_bbg(fsym_id, new_data):
     new_data = pd.DataFrame(new_data)
-    df = prepare_bbg_data(fsym_id, new_data, currency)
+    # df = prepare_bbg_data(fsym_id, new_data, currency)
+    
     # with outs2:
     #     clear_output()
     fig = plot_generic_dividend_data(df)
-    return fig, df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
+    return fig
+# , df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
 
 @app.callback(
     Output('bg-db-graph', 'figure'),
@@ -406,7 +411,7 @@ def plot_bbg(currency, fsym_id, new_data):
     # Output('bbg-data-table', 'data'),
     # Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
-    Input('currency-dropdown', 'value'))
+    Input('fsym-id-dropdown', 'value'))
 def plot_db(fsym_id):
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
     df = data_importer.load_data(query)
@@ -426,69 +431,116 @@ def check_split_history(fsym_id):
                 order by p_split_date
             """
     df = data_importer.load_data(query)
-    data = df.to_dict('records')
-    cols = [{'name': i, 'id':i} for i in df.columns]
-    return data, cols if data is not None else [], []
+    data = df.to_dict('records') if df is not None else []
+    cols = [{'name': i, 'id':i} for i in df.columns] if data is not None else []
+    return data, cols
+
+
 
   
+factset_card = [
+    dbc.CardHeader('Factset'),
+    dbc.CardBody(
+        [
+            html.H5('Compare with factset', className="card-title"),
+            dcc.Graph(id='factset-graph'),
+        ]
+    ),
+]
 
+bbg_card = [
+    dbc.CardHeader('Bloomberg'),
+    dbc.CardBody(
+        [
+            html.H5('Bloomberg data', className="card-title"),
+            dcc.Graph(id='bbg-graph'),
+            # html.Div([dash_table.DataTable(
+            #     id='bbg-data-table',
+            # )]),
+    
+        ]
+    ),
+]  
+bg_card = [
+    dbc.CardHeader('BG'),
+    dbc.CardBody(
+        [
+            html.H5('BG Data', className="card-title"),
+            dcc.Graph(id='bg-db-graph'),
+            html.Div([dash_table.DataTable(
+                id='bg-db-data-table',
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                # page_action='none',
+                fixed_rows={'headers': True},
+                style_header={
+                    'backgroundColor': 'white',
+                    'fontWeight': 'bold'
+                },
+                page_size=20,
+            )]),  
+        ]
+    ),
+]
+split_card = [
+    dbc.CardHeader('Split History'),
+    dbc.CardBody(
+        [
+            html.H5('Split History', className="card-title"),
+            html.Div([dash_table.DataTable(id='split-data-table',)])
+        ]
+    ),
+]
+row_2 = dbc.Row(
+    [
+        dbc.Col(dbc.Card(factset_card, color="light", outline=True)),
+        dbc.Col(dbc.Card(bbg_card, color="dark", outline=True)),
+
+    ]
+)
+row_3 = dbc.Row(
+    [
+        dbc.Col(dbc.Card(split_card, color="light", outline=True)),
+        # dbc.Col(dbc.Card(bbg_card, color="light", outline=True)),
+        dbc.Col(dbc.Card(bg_card, color="dark", outline=True)),
+
+    ]
+)
+
+comparison_panel = html.Div([row_2, row_3])
 
 def core_functionalities():
         return dbc.Card(
             dbc.CardBody([
                 dbc.Row(dbc.Col([])),
                 dbc.Row(dbc.Col([])),
-
-                dcc.Graph(id='fsym-id-graph'),
-
                 html.Div([
                     dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info", is_open=False), width=10), justify='center'),
                     dash_table.DataTable(
                         id='comparison-data-table',
-                        columns=[{}],
-                        data={}
+                        # columns=[{}],
+                        # data={}
                 )]),
-                    
+
+                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info"), width=10), justify='center'),
                 html.Div([dash_table.DataTable(
                     id='fsym-id-data-table',
-                    columns=[{}],
-                    data={}
+                    # columns=[{}],
+                    # data={}
                 )]),
-            
-                html.Details([
-                    html.Summary('Compare with factset'),
-                    dcc.Graph(id='factset-graph'),
-                ]),
                 
-                html.Details([
-                    html.Summary('Bloomberg data'),
-                    dcc.Graph(id='bbg-graph'),
-                    html.Div([dash_table.DataTable(
-                        id='bbg-data-table',
-                    )]),
-    
-                ]),
-    
-                html.Details([
-                    html.Summary('BG Data'),
-                    dcc.Graph(id='bg-db-graph'),
-                    html.Div([dash_table.DataTable(
-                        id='bg-db-data-table',
-                    )]),               
-                ]),
-                
-                html.Details([
-                    html.Summary('Split History'),
-                    html.Div([dash_table.DataTable(
-                        id='split-data-table',)])
-                    ]),
+                dcc.Graph(id='fsym-id-graph'),
+                comparison_panel,
+
+
             ]))
 
 def fsym_id_result():
     return html.Div([
-                dcc.Dropdown(id="fsym-id-dropdown",
-                    options=[{}],
-                    value={}),
+                dcc.Dropdown(id="fsym-id-dropdown"),
+                    # options=[{}],
+                    # value={}),
                 # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
                 html.Div([dash_table.DataTable(
                     id='all-goods-data-table')])
@@ -549,20 +601,19 @@ all_goods_content = dbc.Card(
 
                     
         html.H2('Show All Goods'),
-        dbc.Row(dbc.Col(dbc.Alert(id="all-goods-msg", color="info", is_open=False), width=10), justify='center'),
-        dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
-        dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
+        dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
 
 
         fsym_id_result(),
         core_functionalities(),
         
-        dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info"), width=10), justify='center'),
         
-        dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
-                                   children='Upload skipped', color='success'), 
-                        width=2), justify='end'),
-        html.Br(),
+        # dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
+        #                            children='Upload skipped', color='success'), 
+        #                 width=2), justify='end'),
+        html.Br(),#TODO
         dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
                                    children='Upload to DB', color='success'), 
                         width=2), justify='end'),
@@ -612,7 +663,7 @@ def div_uploader():
             labelStyle={'display': 'inline-block'}
                 ),
         all_goods_content,
-       ])
+       ], fluid=True)
 
 def div_editor():
     return dbc.Card(
