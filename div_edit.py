@@ -252,20 +252,26 @@ seclist = []#TODO combine with the other Card component later
 @app.callback(
     Output('new-data-data-table', 'data'),
     Output('new-data-data-table', 'columns'),
-    Output('all-goods-data-table', 'data'),
-    Output('all-goods-data-table', 'columns'),
-    Output('skipped-data-table', 'data'),
-    Output('skipped-data-table', 'columns'),
-    Output('mismatch-data-table', 'data'),
-    Output('mismatch-data-table', 'columns'),
+    # Output('all-goods-data-table', 'data'),
+    # Output('all-goods-data-table', 'columns'),
+    # Output('skipped-data-table', 'data'),
+    # Output('skipped-data-table', 'columns'),
+    # Output('mismatch-data-table', 'data'),
+    # Output('mismatch-data-table', 'columns'),
     
-    Output('all-goods-dropdown', 'options'),
+    Output('fsym-id-dropdown', 'options'),
+    Output('fsym-id-dropdown', 'value'),
+    Output('all-goods-msg', 'is_open'),
+    Output('mismatch-msg', 'is_open'),
+    Output('skipped-msg', 'is_open'),
+    # Output('skipped-data-table-div', 'style'),
     # Output('skipped-dropdown', 'options'),
-    Output('mismatch-dropdown', 'options'),    
+    # Output('mismatch-dropdown', 'options'),    
     # Output('load-data-msg', 'value'),
     Input('div-date-picker', 'date'),
-    Input('index-only-radio', 'value'))
-def load_data(update_date, index_flag):
+    Input('index-only-radio', 'value'),
+    Input('view-type-radio', 'value'))
+def load_data(update_date, index_flag, selected_option):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
     # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
     # if update_date == "":
@@ -274,86 +280,105 @@ def load_data(update_date, index_flag):
     
     f_date = update_date.replace('-','')#TODO!!!!!!!!!
 
-    # f_date = update_date.strftime('%Y%m%d')#TODO!!!!!!!!!
-    # with open(f'S:/Scheduled_Jobs/output/new_dvd_data_{f_date}.parquet', 'rb') as f:
-    #     new_data = pd.read_parquet(f, engine='pyarrow')
-    # new_data = pd.read_parquet(f'S:/Scheduled_Jobs/output/new_dvd_data_{f_date}.parquet')
-    
     new_data=pd.read_parquet(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\output\new_dvd_data_{f_date}.parquet')
-    print(new_data)
     update_list = pd.read_csv(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\input\sec_list_{f_date}.csv')
     # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
     #TODO don't think splits is used anywhere. double check later
     
-    
+
     (new_data, skipped, pro_rata, splits) = \
         preprocess_bbg_data(new_data, update_list, index_flag, update_date)
     new_data = bbg_data_single_security(new_data)
     skipped = process_skipped(skipped)
     seclist = sorted(list(new_data['fsym_id'].unique()))
     (manual_list, all_goods) = bulk_upload(new_data, update_date, new_data)
+    # has_all_goods = not all_goods.isempty()
+    #  = not manual_list.isempty()
+    # has_skipped = not skipped.isempty()
+    has_all_goods = not None
+    has_skipped = not None
+    has_mismatch = not None
     all_goods = {} if all_goods is None else all_goods.to_dict('records')
     all_goods_col = [] if all_goods == {} else [{'name': i, 'id':i} for i in all_goods.columns]
+    
+    if selected_option == 'all_goods':
+        fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_all_goods else []
+    if selected_option == 'mismatch': 
+        fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_mismatch else []
+    if selected_option == 'skipped': 
+        fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_skipped else []
+
     print('Loaded')#TODO
+    print(all_goods)
+    print(manual_list)
+    print(skipped['fsym_id'].unique())
     return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
-           all_goods, all_goods_col,\
-           skipped.to_dict('records'), [{'name': i, 'id':i} for i in skipped.columns],\
-        manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns],\
-                [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())],\
-                    [{"label": i, "value": i} for i in sorted(manual_list)]
-                # [{"label": i, "value": i} for i in cur_list],
+           fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
+           has_all_goods, has_mismatch, has_skipped
+           # {'display': 'none'} if not has_skipped else {}
+                          # all_goods, all_goods_col,\
+                              
+             # skipped.to_dict('records'), [{'name': i, 'id':i} for i in skipped.columns],\
+
+            # [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())],\
+            # [{"label": all_goods['fsym_id'].to_list()[0], "value": all_goods['fsym_id'].to_list()[0]}],\
+            # [{"label": i, "value": i} for i in sorted(manual_list)]
+            # manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns],\
 
 
 
 @app.callback(
-    Output('basic-info', 'value'),
+    Output('basic-info', 'children'),
     Output('comparison-data-table', 'data'),
     Output('comparison-data-table', 'columns'),
+    Output('fsym-id-data-table', 'data'),
+    Output('fsym-id-data-table', 'columns'),
     Output('fsym-id-graph', 'figure'),
+    Output('comparison-msg', 'children'),
     # Output('load-data-msg', 'value'),
-    Input('all-goods-dropdown', 'value'),
-    # State('upload-fsym-id-dropdown', 'value'),#TODO
+    Input('fsym-id-dropdown', 'value'),
+    State('div-date-picker', 'date'),#TODO
     State('new-data-data-table', 'data'))
 def plot_data(fsym_id, update_date, new_data):
-    new_data = pd.Dataframe(new_data)
+    new_data = pd.DataFrame(new_data)
     global check_exist
     check_exist = check_existence(fsym_id)
-    basic_info = basic_info(fsym_id, new_data)
+    basic_info_str = basic_info(fsym_id, new_data)
     if not check_exist:
-        with outs:
-            clear_output()
-            print("This is a new name.")
-            bbg = new_data[new_data['fsym_id']==fsym_id].copy()
-            factset = factset_new_data(fsym_id)
-            comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset)
-            fig = plot_dividend_data_comparison(factset, bbg)
-            display(HTML(comparison.to_html()))
+        comparison_msg = "This is a new name."
+        bbg = new_data[new_data['fsym_id']==fsym_id].copy()
+        factset = factset_new_data(fsym_id)
+        comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset)
+        fig = plot_dividend_data_comparison(factset, bbg)
+        # display(HTML(comparison.to_html()))
     else:
         (last_cur, fstest_cur) = dividend_currency(fsym_id, new_data)
-        with outs2:
-            df = compare_new_data_with_factset(fsym_id, update_date, new_data)
-            if fstest_cur != last_cur:
-                print(f'Possible currency change. Last payment:{last_cur}. Factset payment:{fstest_cur}')
-            display(HTML(df.to_html()))
-        with outs:
-            clear_output()
-            df = compare_new_data_with_factset(fsym_id, update_date, new_data)
-            new = new_data[new_data['fsym_id']==fsym_id].copy()
-            new['listing_currency'] = fstest_cur
-            new['payment_currency'] = last_cur
-            display('New Dividend Data')
-            display(HTML(new.to_html()))
-            fig = plot_dividend_data(fsym_id, new_data)
-    return basic_info, comparison.to_dict('records'),[{'name': i, 'id':i} for i in comparison.columns], fig
+        # with outs2:
+        comparison = compare_new_data_with_factset(fsym_id, update_date, new_data)
+        if fstest_cur != last_cur:
+            comparison_msg = f'Possible currency change. Last payment:{last_cur}. Factset payment:{fstest_cur}'
+            # display(HTML(df.to_html()))
+        # with outs:
+        #     clear_output()
+        # comparison = compare_new_data_with_factset(fsym_id, update_date, new_data)
+        new = new_data[new_data['fsym_id']==fsym_id].copy()
+        new['listing_currency'] = fstest_cur
+        new['payment_currency'] = last_cur
+        comparison_msg = 'New Dividend Data'
+        # display(HTML(new.to_html()))
+        fig = plot_dividend_data(fsym_id, new_data)
+    return basic_info_str, comparison.to_dict('records'),[{'name': i, 'id':i} for i in comparison.columns],\
+         new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns], fig, comparison_msg
 
 @app.callback(
     Output('factset-graph', 'figure'),
     # Output('load-data-msg', 'value'),
-    Input('all-goods-dropdown', 'value'),
+    Input('fsym-id-dropdown', 'value'),
     State('new-data-data-table', 'data'))
 def plot_comparison(fsym_id, new_data):
-    bbg = new_data[new_data['fsym_id']==fsym_id].copy()
-    query = f"select * from fstest.dbo.bg_div where fsym_id ='{select.value}'"
+    new_data = pd.DataFrame(new_data)
+    bbg = new_data[new_data['fsym_id'] == fsym_id].copy()
+    query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
     bg = data_importer.load_data(query)
     fig = plot_dividend_data_comparison(bg, bbg)
     return fig
@@ -364,14 +389,15 @@ def plot_comparison(fsym_id, new_data):
     Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
     Input('currency-dropdown', 'value'),
-    State('all-goods-dropdown', 'value'),
+    State('fsym-id-dropdown', 'value'),
     State('new-data-data-table', 'data'))
 def plot_bbg(currency, fsym_id, new_data):
+    new_data = pd.DataFrame(new_data)
     df = prepare_bbg_data(fsym_id, new_data, currency)
-    with outs2:
-        clear_output()
-        fig = plot_generic_dividend_data(df)
-        return fig, df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
+    # with outs2:
+    #     clear_output()
+    fig = plot_generic_dividend_data(df)
+    return fig, df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
 
 @app.callback(
     Output('bg-db-graph', 'figure'),
@@ -391,7 +417,7 @@ def plot_db(fsym_id):
     Output('split-data-table', 'data'),
     Output('split-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
-    Input('all-goods-dropdown', 'value'))
+    Input('fsym-id-dropdown', 'value'))
 def check_split_history(fsym_id):
     query = f"""select 
                 fsym_id,p_split_date,p_split_factor, 
@@ -400,7 +426,10 @@ def check_split_history(fsym_id):
                 order by p_split_date
             """
     df = data_importer.load_data(query)
-    return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
+    data = df.to_dict('records')
+    cols = [{'name': i, 'id':i} for i in df.columns]
+    return data, cols if data is not None else [], []
+
   
 
 
@@ -411,7 +440,21 @@ def core_functionalities():
                 dbc.Row(dbc.Col([])),
 
                 dcc.Graph(id='fsym-id-graph'),
-    
+
+                html.Div([
+                    dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info", is_open=False), width=10), justify='center'),
+                    dash_table.DataTable(
+                        id='comparison-data-table',
+                        columns=[{}],
+                        data={}
+                )]),
+                    
+                html.Div([dash_table.DataTable(
+                    id='fsym-id-data-table',
+                    columns=[{}],
+                    data={}
+                )]),
+            
                 html.Details([
                     html.Summary('Compare with factset'),
                     dcc.Graph(id='factset-graph'),
@@ -441,6 +484,17 @@ def core_functionalities():
                     ]),
             ]))
 
+def fsym_id_result():
+    return html.Div([
+                dcc.Dropdown(id="fsym-id-dropdown",
+                    options=[{}],
+                    value={}),
+                # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
+                html.Div([dash_table.DataTable(
+                    id='all-goods-data-table')])
+            ])
+       
+
 mismatch_content = dbc.Card(
     dbc.CardBody(
         [
@@ -466,7 +520,8 @@ skipped_content = dbc.Card(
                 )]),
                 ]),
                 
-            html.Details([
+            html.Div(id='skipped-data-table-div',
+             children = [
                 html.Summary('Showed Skipped'),
                 html.Div([dash_table.DataTable(
                     id='skipped-data-table',
@@ -477,43 +532,41 @@ skipped_content = dbc.Card(
     className="mt-3",
 )
 
-    
 all_goods_content = dbc.Card(
-        dbc.CardBody([
-            # Hidden datatable for storing data
-            html.Div([dash_table.DataTable(
-                id='new-data-data-table',
-                # columns=[{'name': i, 'id':i} for i in data.columns],
-                # data=data.to_dict('records')
-            )], style= {'display': 'none'}),
+    id = 'main-panel',
+    children = [dbc.CardBody([
+        # Hidden datatable for storing data
+        html.Div([dash_table.DataTable(
+            id='new-data-data-table',
+            # columns=[{'name': i, 'id':i} for i in data.columns],
+            # data=data.to_dict('records')
+        )], style= {'display': 'none'}),
 
-            html.Div([dash_table.DataTable(
-                id='comparison-data-table',
-            )]),
 
-            dbc.Row(),
-            dbc.Row(),
+        dbc.Row(),
+        dbc.Row(),
             
-            html.H2('Show All Goods'),
-            dcc.Dropdown(
-            id="all-goods-dropdown"),
-            # options=[{"label": 'All', "value": 'All'}] +\
-            #     [{"label": i, "value": i} for i in cur_list],
-            # value=cur_list[0]),
-            html.Div([dash_table.DataTable(
-                id='all-goods-data-table',
-            )]),
-            
-            core_functionalities(),
-            
-            dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
-                                       children='Upload skipped', color='success'), 
-                            width=2), justify='end'),
-            html.Br(),
-            dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
-                                       children='Upload to DB', color='success'), 
-                            width=2), justify='end'),
-            ]))
+
+                    
+        html.H2('Show All Goods'),
+        dbc.Row(dbc.Col(dbc.Alert(id="all-goods-msg", color="info", is_open=False), width=10), justify='center'),
+        dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
+        dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
+
+
+        fsym_id_result(),
+        core_functionalities(),
+        
+        dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info"), width=10), justify='center'),
+        
+        dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
+                                   children='Upload skipped', color='success'), 
+                        width=2), justify='end'),
+        html.Br(),
+        dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
+                                   children='Upload to DB', color='success'), 
+                        width=2), justify='end'),
+        ])])
 
 def top_select_panel():
     return dbc.Card(
@@ -547,10 +600,18 @@ def top_select_panel():
 
 def div_uploader():
    return dbc.Container([
-       dbc.Tabs([
-           dbc.Tab(all_goods_content, label="All goods"),
-           dbc.Tab(mismatch_content, label="Mismatched"),
-           dbc.Tab(skipped_content, label="Skipped")]),
+        dcc.RadioItems(
+            id='view-type-radio',
+            options=[
+                {'label': 'All Goods', 'value': 'all-goods'},
+                {'label': 'Mismatched', 'value': 'mismatch'},
+                {'label': 'Skipped', 'value': 'skipped'}
+            ],
+            value='mismatch',
+            # value='all-goods',
+            labelStyle={'display': 'inline-block'}
+                ),
+        all_goods_content,
        ])
 
 def div_editor():
@@ -562,12 +623,12 @@ def div_editor():
         html.Br(),
         dbc.Row(dbc.Col(html.H3("Data")), justify='start'),
 
-        dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
-        dbc.Row(dbc.Col(dcc.Dropdown(
-                    id="fsym-id-dropdown",
-                    options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in fsym_id],
-                    value=fsym_id[0],
-                ), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
+        # dbc.Row(dbc.Col(dcc.Dropdown(
+        #             id="fsym-id-dropdown",
+        #             options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in fsym_id],
+        #             value=fsym_id[0],
+        #         ), width=10), justify='center'),
         
         # Hidden datatable for storing data
         html.Div([dash_table.DataTable(
@@ -706,9 +767,16 @@ def div_editor():
 # App Layout
 app.layout = dbc.Container([
     top_select_panel(),
-    div_uploader(),
+    # dcc.Loading(id="is-loading-data", children=[dbc.Alert(id="is-loading-msg")], type="default"),
+    dcc.Loading(id="is-loading-data", children=[div_uploader()], type="default"),
+
+    # div_uploader(),
     html.Br(), div_editor()
     ], fluid=True)
+
+# @app.callback(Output("is-loading-msg", "children"), Input("main-panel", "value"))
+# def loading_data_spinner(value):
+#     return 'Data loaded'
 
 @app.callback(
     Output('output-data-table', 'data'),
