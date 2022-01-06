@@ -8,6 +8,7 @@ Created on Thu Dec 16 12:52:24 2021
 import json
 import time
 import dash
+from flask import Flask
 import dash_table
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
@@ -29,7 +30,7 @@ from bg_data_uploader import *
 # sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
 # from bg_data_importer import DataImporter
 
-data_importer = DataImporter(False)
+data_importer_dash = DataImporter(False)
 
 # =============================================================================
 # Div Modifier Helpers
@@ -50,7 +51,7 @@ def get_raw_data(fsym_id):
                 where fsym_id in {seclist}
                 order by fsym_id asc, exdate desc
              """
-    df = data_importer.load_data(query)
+    df = data_importer_dash.load_data(query)
     df = massage_div_df(df)
     return df
 
@@ -111,7 +112,7 @@ def compare_new_data_with_factset(secid, update_date, new_data, factset=None):
         factset = factset[factset['exdate'] <= update_date]
     bbg = new_data[new_data['fsym_id']==secid].copy()
     new_data_comparison = pd.merge(bbg, factset, how='outer', on=['fsym_id','exdate','div_type'], suffixes=('_bbg','_factset'))
-    new_data_comparison = new_data_comparison.sort_values(['exdate'])
+    new_data_comparison = new_data_comparison.sort_values(['exdate'], inplace=True)
     new_data_comparison = new_data_comparison.reset_index(drop=True)
     new_data_comparison = new_data_comparison[new_data_comparison.filter(regex='fsym_id|exdate|payment_date|amount').columns]
     new_data_comparison['check_amount'] = np.where(abs(new_data_comparison['payment_amount_factset']-new_data_comparison['payment_amount_bbg'])>0.001, 'Mismatch', 'Good')
@@ -220,9 +221,10 @@ def plot_dividend_data_comparison(bg, bbg):
 # =============================================================================
 # Dash app
 # =============================================================================
-
+# server = Flask(__name__)
 app = dash.Dash(
     __name__,
+     # server=server, url_base_pathname='/',
     meta_tags=[{"name": "viewport", 
                 "content": "width=device-width, initial-scale=1"}],
     external_stylesheets=[dbc.themes.BOOTSTRAP]
@@ -230,7 +232,7 @@ app = dash.Dash(
 
 fsym_id = data['fsym_id'].unique()
 
-print(data.dtypes)
+# print(data.dtypes)
 def highlight_special_case_row():
     return [{
             'if': {
@@ -263,7 +265,10 @@ seclist = []#TODO combine with the other Card component later
     Output('fsym-id-dropdown', 'value'),
     # Output('all-goods-msg', 'is_open'),
     Output('no-data-msg', 'children'),
-    Output('no-data-msg', 'style'),
+    Output('no-data-msg', 'is_open'),
+    Output('main-panel-div', 'style'),
+    # Output('uploader', 'style'),
+
     # Output('skipped-msg', 'is_open'),
     # Output('skipped-data-table-div', 'style'),
     # Output('skipped-dropdown', 'options'),
@@ -272,7 +277,7 @@ seclist = []#TODO combine with the other Card component later
     Input('div-date-picker', 'date'),
     Input('index-only-radio', 'value'),
     Input('view-type-radio', 'value'))
-def load_data(update_date, index_flag, selected_review_option):
+def load_data_to_dash(update_date, index_flag, selected_review_option):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
     # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
     # if update_date == "":
@@ -281,8 +286,8 @@ def load_data(update_date, index_flag, selected_review_option):
     
     f_date = update_date.replace('-','')#TODO!!!!!!!!!
 
-    new_data=pd.read_parquet(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\output\new_dvd_data_{f_date}.parquet')
-    update_list = pd.read_csv(rf'C:\Users\Chang.Liu\Documents\dev\data_update_checker\input\sec_list_{f_date}.csv')
+    new_data=pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
+    update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
     # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
     #TODO don't think splits is used anywhere. double check later
     
@@ -296,29 +301,31 @@ def load_data(update_date, index_flag, selected_review_option):
     # has_all_goods = not all_goods.isempty()
     #  = not manual_list.isempty()
     # has_skipped = not skipped.isempty()
-    has_all_goods = all_goods is not None
-    has_skipped = skipped is not None
-    has_mismatch = manual_list is not None
-    all_goods = {} if all_goods is None else all_goods.to_dict('records')
-    all_goods_col = [] if all_goods == {} else [{'name': i, 'id':i} for i in all_goods.columns]
-    
     if selected_review_option == 'all_goods':
-        fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_all_goods else []
-        has_selected = has_all_goods
+        has_data = all_goods is not None
+        fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_data else []
     if selected_review_option == 'mismatch': 
-        fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_mismatch else []
-        has_selected = has_mismatch
+        has_data = manual_list is not None
+        fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_data else []
     if selected_review_option == 'skipped': 
-        fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_skipped else []
-        has_selected = has_skipped
+        has_data = skipped is not None
+        fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_data else []
+        print(fsym_id_dropdown_options)
 
     print('Loaded')#TODO
-    # print(all_goods)
-    # print(manual_list)
-    # print(skipped['fsym_id'].unique())
+    print(all_goods)
+    print(manual_list)
+    print(skipped)
+    print(has_dataz)
+    # if not has_data:
+    #     raise dash.exceptions.PreventUpdate
+    #     return {}, [], f'There is no entry to be reviewed for {selected_review_option}', not has_data, {'display': 'none'}
+
+
     return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
            fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
-           f'There is no entry to be reviewed for {selected_review_option}' if not has_selected else f'Data loaded', {'display': 'none'} if not has_selected else {}
+           f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded',\
+           not has_data, {'display': 'none'} if not has_data else {}
            # {'display': 'none'} if not has_skipped else {}
                           # all_goods, all_goods_col,\
                               
@@ -377,15 +384,25 @@ def get_basic_info(fsym_id, update_date, new_data):
 @app.callback(
     Output('factset-graph', 'figure'),
     # Output('load-data-msg', 'value'),
+    Output('factset-card', 'style'),
+    Output('factset-warning-msg', 'is_open'),
+    Output('factset-warning-msg', 'children'),
     Input('fsym-id-dropdown', 'value'),
     State('new-data-data-table', 'data'))
 def plot_comparison(fsym_id, new_data):
     new_data = pd.DataFrame(new_data)
     bbg = new_data[new_data['fsym_id'] == fsym_id].copy()
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
-    bg = data_importer.load_data(query)
+
+    try:
+        bg = data_importer_dash.load_data(query)
+    except Exception as e:
+        warning_msg = f'Error while loading data from DB: {e}'
+        fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+        return fig, {'display': 'none'}, True, warning_msg
     fig = plot_dividend_data_comparison(bg, bbg)
-    return fig
+    return fig, {}, False, ''
+
 
 @app.callback(
     Output('bbg-graph', 'figure'),
@@ -408,15 +425,38 @@ def plot_bbg(fsym_id, new_data):
     Output('bg-db-graph', 'figure'),
     Output('bg-db-data-table', 'data'),
     Output('bg-db-data-table', 'columns'),
+    Output('bg-db-card', 'style'),
+    Output('bg-db-warning-msg', 'is_open'),
+    Output('bg-db-warning-msg', 'children'),
+    # Output('bg-card', 'is_open'),
+
     # Output('bbg-data-table', 'data'),
     # Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
     Input('fsym-id-dropdown', 'value'))
 def plot_db(fsym_id):
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
-    df = data_importer.load_data(query)
-    fig = plot_generic_dividend_data(df)
-    return fig, df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns]
+    try:
+        df = data_importer_dash.load_data(query)
+        df.sort_values(by=['exdate'], ascending=False, inplace=True)
+        fig = plot_generic_dividend_data(df)
+    except Exception as e:
+        warning_msg = f'Error while loading data from DB: {e}'
+        fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+        return fig, {}, [], {'display': 'none'}, warning_msg
+    
+    if df is None:
+        has_data = False
+        warning_msg = 'This holding is not in the DB.' 
+        cols = []
+        df = {}
+    else:
+        has_data = True
+        warning_msg = ''
+        cols = [{'name': i, 'id':i} for i in df.columns]
+        df = df.to_dict('records')        
+    return fig, df, cols, {'display': 'none'} if not has_data else {}, has_data, warning_msg
+
 
 @app.callback(
     Output('split-data-table', 'data'),
@@ -430,7 +470,7 @@ def check_split_history(fsym_id):
                 from fstest.fp_v2.fp_basic_splits where fsym_id= '{fsym_id}'
                 order by p_split_date
             """
-    df = data_importer.load_data(query)
+    df = data_importer_dash.load_data(query)
     data = df.to_dict('records') if df is not None else []
     cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
     return data, cols
@@ -492,187 +532,32 @@ split_card = [
         ]
     ),
 ]
+
 row_2 = dbc.Row(
     [
-        dbc.Col(dbc.Card(factset_card, color="light", outline=True)),
-        dbc.Col(dbc.Card(bbg_card, color="dark", outline=True)),
-
+        dbc.Col([dbc.Card(factset_card, id='factset-card', color="dark", outline=True),
+                 dbc.Alert(id="factset-warning-msg", color="info", is_open=False)]),
+        dbc.Col(dbc.Card(bbg_card, id='bbg-card', color="dark", outline=True))
     ]
 )
 row_3 = dbc.Row(
     [
-        dbc.Col(dbc.Card(split_card, color="light", outline=True)),
-        # dbc.Col(dbc.Card(bbg_card, color="light", outline=True)),
-        dbc.Col(dbc.Card(bg_card, color="dark", outline=True)),
-
+        dbc.Col(dbc.Card(split_card, id='split-card', color="dark", outline=True)),
+        dbc.Col([dbc.Card(bg_card, id='bg-db-card', color="dark", outline=True),
+                 dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)])
     ]
 )
 
-comparison_panel = html.Div([row_2, row_3])
-
-def core_functionalities():
-        return dbc.Card(
-            dbc.CardBody([
-                dbc.Row(dbc.Col([])),
-                dbc.Row(dbc.Col([])),
-                html.Div([
-                    dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info", is_open=False), width=10), justify='center'),
-                    dash_table.DataTable(
-                        id='comparison-data-table',
-                        # columns=[{}],
-                        # data={}
-                )]),
-
-                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info"), width=10), justify='center'),
-                html.Div([dash_table.DataTable(
-                    id='fsym-id-data-table',
-                    # columns=[{}],
-                    # data={}
-                )]),
-                
-                dcc.Graph(id='fsym-id-graph'),
-                comparison_panel,
-
-
-            ]))
-
-def fsym_id_result():
-    return html.Div([
-                dcc.Dropdown(id="fsym-id-dropdown"),
-                    # options=[{}],
-                    # value={}),
-                # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
-                html.Div([dash_table.DataTable(
-                    id='all-goods-data-table')])
-            ])
-       
-
-mismatch_content = dbc.Card(
-    dbc.CardBody(
-        [
-            html.P("This is tab 2!", className="card-text"),
-            dbc.Button("Don't click here", color="danger"),
-        ]
-    ),
-    className="mt-3",
-)
-
-skipped_content = dbc.Card(
-    dbc.CardBody(
-        [
-            html.P("This is tab 2!", className="card-text"),
-            dbc.Button("Don't click here", color="danger"),
-            
-                html.Details([
-                html.Summary('Show Mismatch'),
-                dcc.Dropdown(
-                    id="mismatch-dropdown"),
-                html.Div([dash_table.DataTable(
-                    id='mismatch-data-table',
-                )]),
-                ]),
-                
-            html.Div(id='skipped-data-table-div',
-             children = [
-                html.Summary('Showed Skipped'),
-                html.Div([dash_table.DataTable(
-                    id='skipped-data-table',
-                )])
-            ]),
-        ]
-    ),
-    className="mt-3",
-)
-
-all_goods_content = dbc.Card(
-    id = 'main-panel',
-    children = [dbc.CardBody([
-        # Hidden datatable for storing data
-        html.Div([dash_table.DataTable(
-            id='new-data-data-table',
-            # columns=[{'name': i, 'id':i} for i in data.columns],
-            # data=data.to_dict('records')
-        )], style= {'display': 'none'}),
-
-
-        dbc.Row(),
-        dbc.Row(),
-            
-
-                    
-        # html.H2('Show All Goods'),
-        dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
-
-
-        fsym_id_result(),
-        core_functionalities(),
-        
-        
-        # dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
-        #                            children='Upload skipped', color='success'), 
-        #                 width=2), justify='end'),
-        html.Br(),#TODO
-        dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
-                                   children='Upload to DB', color='success'), 
-                        width=2), justify='end'),
-        ])])
-
-def top_select_panel():
-    return dbc.Card(
-        dbc.CardBody([
-            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
-    
-            dcc.DatePickerSingle(
-                id='div-date-picker',
-                min_date_allowed=date(2000, 8, 5),
-                max_date_allowed=date.today(),
-                # initial_visible_month=date(2017, 8, 5),
-                date = date(2021, 12, 31),
-                # date=(datetime.today() + pd.offsets.MonthEnd(0)),
-                # disabled_days=,
-                # display_format='YYYYMMDD',
-                clearable =True),
-            html.Br(),
-            dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
-            dbc.RadioItems(# TODO needs to fix the radio
-                id='index-only-radio',
-                options=[
-                    {'label': 'Yes', 'value': 1},
-                    {'label': 'No', 'value': 0}
-                ],
-                value=1,
-                labelStyle={'display': 'inline-block'}),
-            
-            html.Hr(),
-            ]), className='mt-3')
-
-
-def div_uploader():
-   return dbc.Container([
-        dcc.RadioItems(
-            id='view-type-radio',
-            options=[
-                {'label': 'All Goods', 'value': 'all-goods'},
-                {'label': 'Mismatched', 'value': 'mismatch'},
-                {'label': 'Skipped', 'value': 'skipped'}
-            ],
-            value='mismatch',
-            # value='all-goods',
-            labelStyle={'display': 'inline-block'}
-                ),
-        all_goods_content,
-       ], fluid=True)
+comparison_panel = html.Div([row_2, dbc.Row(dbc.Col(html.Br())), row_3])
 
 def div_editor():
     return dbc.Card(
         dbc.CardBody([
         
-        html.Br(),
-        dbc.Row(html.H1("Dividend Entry Editor"), justify='center'),
-        html.Br(),
-        dbc.Row(dbc.Col(html.H3("Data")), justify='start'),
+        # html.Br(),
+        # dbc.Row(html.H1("Dividend Entry Editor"), justify='center'),
+        # html.Br(),
+        dbc.Row(dbc.Col(html.H3("Data editor")), justify='start'),
 
         # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
         # dbc.Row(dbc.Col(dcc.Dropdown(
@@ -772,13 +657,13 @@ def div_editor():
             # tooltip_duration=None,
             # Workaround for bug regarding display row dropdown with Boostrap
             css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}]
-        ), width=10), justify='center'),
+        )), justify='center'),
         dbc.Row(html.Div(id='table-dropdown-container')),
     
         
         html.Br(),
         html.Br(),  
-        dbc.Row(html.H3("Modified History"), justify='start'),
+        dbc.Row(html.H3("Edit History"), justify='start'),
     
         dbc.Row(dbc.Col(dash_table.DataTable(
             id='modified-data-rows',
@@ -804,25 +689,184 @@ def div_editor():
                 } for row in data.to_dict('records')
             ],
             tooltip_duration=None
-        ), width=10), justify='center'),
+        )), justify='center'),
         
-        dbc.Row(html.H5('Save changes'), justify='start'),
-    
-        dbc.Row(dbc.Col(dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"), width=10), justify='center'),
-        dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
+        # dbc.Row(html.H5('Save changes'), justify='start'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
         
         ]),             
         className="w-85")
 
+def core_functionalities():
+        return dbc.Card(
+            dbc.CardBody([
+                dbc.Row(dbc.Col([])),
+                dbc.Row(dbc.Col([])),
+                html.Div([
+                    dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info")), justify='center'),
+                    dash_table.DataTable(
+                        id='comparison-data-table',
+                        # columns=[{}],
+                        # data={}
+                )]),
+                
+                html.Br(),
+                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info")), justify='center'),
+                html.Div([dash_table.DataTable(
+                    id='fsym-id-data-table',
+                    # columns=[{}],
+                    # data={}
+                )]),
+                html.Br(),
+                div_editor(),
+                dcc.Graph(id='fsym-id-graph'),
+                comparison_panel,
+
+
+            ]))
+
+def fsym_id_selection():
+    return html.Div([
+                dcc.Dropdown(id="fsym-id-dropdown"),
+                    # options=[{}],
+                    # value={}),
+                # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
+                html.Div([dash_table.DataTable(
+                    id='all-goods-data-table')])
+            ])
+       
+
+mismatch_content = dbc.Card(
+    dbc.CardBody(
+        [
+            html.P("This is tab 2!", className="card-text"),
+            dbc.Button("Don't click here", color="danger"),
+        ]
+    ),
+    className="mt-3",
+)
+
+skipped_content = dbc.Card(
+    dbc.CardBody(
+        [
+            html.P("This is tab 2!", className="card-text"),
+            dbc.Button("Don't click here", color="danger"),
+            
+                html.Details([
+                html.Summary('Show Mismatch'),
+                dcc.Dropdown(
+                    id="mismatch-dropdown"),
+                html.Div([dash_table.DataTable(
+                    id='mismatch-data-table',
+                )]),
+                ]),
+                
+            html.Div(id='skipped-data-table-div',
+             children = [
+                html.Summary('Showed Skipped'),
+                html.Div([dash_table.DataTable(
+                    id='skipped-data-table',
+                )])
+            ]),
+        ]
+    ),
+    className="mt-3",
+)
+
+all_goods_content = html.Div(dbc.Card(
+    id = 'main-panel',
+    children = [dbc.CardBody([
+        # Hidden datatable for storing data
+        html.Div([dash_table.DataTable(
+            id='new-data-data-table',
+            # columns=[{'name': i, 'id':i} for i in data.columns],
+            # data=data.to_dict('records')
+        )], style= {'display': 'none'}),
+
+
+        dbc.Row(),
+        dbc.Row(),
+            
+
+                    
+        # html.H2('Show All Goods'),
+        dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
+
+
+        fsym_id_selection(),
+        core_functionalities(),
+        
+        
+        # dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
+        #                            children='Upload skipped', color='success'), 
+        #                 width=2), justify='end'),
+        html.Br(),#TODO
+        dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
+                                   children='Upload to DB', color='success'), 
+                        width=2), justify='end'),
+        ])], style={}), id='main-panel-div')
+
+def top_select_panel():
+    return dbc.Card(
+        dbc.CardBody([
+            html.Br(),
+            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
+            html.Br(),
+            dcc.DatePickerSingle(
+                id='div-date-picker',
+                min_date_allowed=date(2000, 8, 5),
+                max_date_allowed=date.today(),
+                # initial_visible_month=date(2017, 8, 5),
+                date = date(2021, 12, 31),
+                # date=(datetime.today() + pd.offsets.MonthEnd(0)),
+                # disabled_days=,
+                # display_format='YYYYMMDD',
+                clearable =True),
+            html.Br(),
+            html.Br(),
+            dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
+            dbc.RadioItems(# TODO needs to fix the radio
+                id='index-only-radio',
+                options=[
+                    {'label': 'Yes', 'value': True},
+                    {'label': 'No', 'value': False}
+                ],
+                value=True,
+                labelStyle={'display': 'inline-block'}),
+            
+            html.Br(),
+            dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
+            dbc.RadioItems(
+                id='view-type-radio',
+                options=[
+                    {'label': 'All Goods', 'value': 'all_goods'},
+                    {'label': 'Mismatched', 'value': 'mismatch'},
+                    {'label': 'Skipped', 'value': 'skipped'}
+                ],
+                # value='mismatch',
+                value='all_goods',
+                inline=True),
+            html.Hr(),
+            ]), className='mt-3')
+
+
+def div_uploader():
+   return html.Div([
+        all_goods_content,
+       ], id='uploader')
+
 
 # App Layout
 app.layout = dbc.Container([
-    top_select_panel(),
+    dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
     # dcc.Loading(id="is-loading-data", children=[dbc.Alert(id="is-loading-msg")], type="default"),
     dcc.Loading(id="is-loading-data", children=[div_uploader()], type="default"),
-
     # div_uploader(),
-    html.Br(), div_editor()
+    # div_uploader(),
+    # html.Br(), div_editor()
     ], fluid=True)
 
 # @app.callback(Output("is-loading-msg", "children"), Input("main-panel", "value"))
@@ -863,13 +907,16 @@ def update_data_table(modified_datatable, datatable, rows, rows_prev):
     State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
-    if (len(rows) == len(rows_prev)):
+    len_rows = len(rows) if rows is not None else 0
+    len_rows_prev = len(rows_prev) if rows_prev is not None else 0
+    if rows_prev is None: return []
+    if len_rows == len_rows_prev:
         modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
         modified_rows[-1]['action'] = 'update'
         modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
         modified_rows[-1]['action'] = 'original'
-    if (len(rows) < len(rows_prev)):
-         modified_rows = modified_rows + [i for i in rows_prev if i not in rows]
+    if len_rows < len_rows_prev:
+         modified_rows = [i for i in rows_prev if i not in rows] if modified_rows is None else modified_rows + [i for i in rows_prev if i not in rows]
          modified_rows[-1]['action'] = 'delete'
     # if (len(rows) == len(rows_prev)):ss
     #     modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
@@ -878,22 +925,23 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
     return modified_rows
 
-@app.callback(
-        Output("save-msg", "children"),
-        Output("save-msg", "color"),
-        Input("save-button", "n_clicks"),
-        State("data-table", "data")
-        )
-def export_modified_data(nclicks, modified_data): 
-    if nclicks == 0:
-        raise PreventUpdate
-    else:
-        df = pd.DataFrame(modified_data)
-        datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
-        df = df.astype(datatypes)
-        print(df.dtypes)
-        df.to_csv('edited_div_data')
-        return 'Data saved to DB', 'success'
+# @app.callback(
+#         Output("save-msg", "children"),
+#         Output("save-msg", "color"),
+#         Input("save-button", "n_clicks"),
+#         State("data-table", "data")
+#         )
+# def export_modified_data(nclicks, modified_data): 
+#     if nclicks == 0:
+#         raise PreventUpdate
+#     else:
+#         df = pd.DataFrame(modified_data)
+#         datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
+#         df = df.astype(datatypes)
+#         print(df.dtypes)
+         # df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+#         df.to_csv('edited_div_data')
+#         return 'Data saved to DB', 'success'
 
 # Running the server
 if __name__ == "__main__":
@@ -901,3 +949,5 @@ if __name__ == "__main__":
     #   http://[host computer's IP address]:8080/
     # app.run_server(debug=False, host='0.0.0.0', port = 8080)
     app.run_server(debug=True, port=8030, dev_tools_silence_routes_logging = False)
+    # app.run_server(debug=True, port=8080, use_reloader=False)
+    # app.run_server(debug=False, port=8080, use_reloader=False)
