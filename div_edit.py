@@ -9,10 +9,13 @@ import json
 import time
 import dash
 from flask import Flask
-import dash_table
-import dash_core_components as dcc
+# import dash_table
+# import dash_core_components as dcc
 import dash_bootstrap_components as dbc
-import dash_html_components as html
+# import dash_html_components as html
+from dash import dash_table
+from dash import dcc
+from dash import html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -22,6 +25,14 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from datetime import datetime, date 
+
+import functools
+from dash.long_callback import DiskcacheLongCallbackManager
+
+## Diskcache
+import diskcache
+cache = diskcache.Cache("./cache")
+long_callback_manager = DiskcacheLongCallbackManager(cache)
 
 # import os
 # os.chdir(r'C:\Users\Chang.Liu\Documents\dev\div_data_uploader')
@@ -56,12 +67,12 @@ def get_raw_data(fsym_id):
     return df
 
 
-seclist = ['CRHZ50-R','D4VRCD-R','DYZT1C-R','F86WNV-R','F9CCB4-R','FFKCF9-R','FWD88N-R',
-'FZX1RR-R','G96265-R','GW7J66-R','H59VN3-R','H7HFJJ-R','J0FV3X-R','JDDDQJ-R',
-'JJ8MHV-R','KFMHQN-R','KMQ9YZ-R','M75128-R','MH3J5L-R','NL5NGR-R','PHPQLF-R',
-'QBSNDL-R','S7YFVK-R','SNVTLF-R','V05ZYN-R','V3MNCR-R','W5C59W-R','WMSKQW-R',
-'WRTQ85-R','WYM8VT-R','WZNMF1-R','X0NPP6-R','X2DZC9-R','X44KDF-R']
-data = get_raw_data(seclist)
+# seclist = ['CRHZ50-R','D4VRCD-R','DYZT1C-R','F86WNV-R','F9CCB4-R','FFKCF9-R','FWD88N-R',
+# 'FZX1RR-R','G96265-R','GW7J66-R','H59VN3-R','H7HFJJ-R','J0FV3X-R','JDDDQJ-R',
+# 'JJ8MHV-R','KFMHQN-R','KMQ9YZ-R','M75128-R','MH3J5L-R','NL5NGR-R','PHPQLF-R',
+# 'QBSNDL-R','S7YFVK-R','SNVTLF-R','V05ZYN-R','V3MNCR-R','W5C59W-R','WMSKQW-R',
+# 'WRTQ85-R','WYM8VT-R','WZNMF1-R','X0NPP6-R','X2DZC9-R','X44KDF-R']
+# data = get_raw_data(seclist)
 cur_list = ['USD','CAD','EUR','GBP','JPY']
 
 
@@ -105,13 +116,17 @@ def plot_dividend_data(fsym_id, new_data, alt_cur=None):
     
     return fig
 #TODO func signature change
-def compare_new_data_with_factset(secid, update_date, new_data, factset=None):
+def compare_new_data_with_factset(secid, update_date, bbg, factset=None):
     if factset is None:
         factset = factset_new_data(secid)
     if check_exist:
         factset = factset[factset['exdate'] <= update_date]
-    bbg = new_data[new_data['fsym_id']==secid].copy()
-
+    # bbg = new_data[new_data['fsym_id']==secid].copy()
+    # print('preprocess_bbg_data')
+    # print(dates_cols)
+    bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
+    print(bbg.dtypes)
+    print(factset.dtypes)
     new_data_comparison = pd.merge(bbg, factset, how='outer', on=['fsym_id','exdate','div_type'], suffixes=('_bbg','_factset'))
     new_data_comparison = new_data_comparison.sort_values(['exdate'])
     new_data_comparison = new_data_comparison.reset_index(drop=True)
@@ -128,21 +143,21 @@ def print_new_data_comparison(x):
         clear_output()
         display(HTML(df.to_html()))
 #TODO changed func sig
-def prepare_bbg_data(fsym_id, new_data, alt_cur='', regular_skipped='regular'):
-    if regular_skipped == 'regular':
-        new = new_data[new_data['fsym_id']==fsym_id].copy()
-    elif regular_skipped == 'skipped' :
-        new = skipped[skipped['fsym_id']==fsym_id].copy()
+def prepare_bbg_data(new_data, alt_cur=''):
+    # if regular_skipped == 'regular':
+    #     new = new_data[new_data['fsym_id']==fsym_id].copy()
+    # elif regular_skipped == 'skipped' :
+    #     new = skipped[skipped['fsym_id']==fsym_id].copy()
         
-    (last_cur, fstest_cur) = dividend_currency(fsym_id, new_data)
+    (last_cur, fstest_cur) = dividend_currency(new_data)
     if last_cur is None:
         last_cur = fstest_cur
-#     new['listing_currency'] = fstest_cur
+        new_data['listing_currency'] = fstest_cur
     if alt_cur != '':
-        new['payment_currency'] = alt_cur.upper()
+        new_data['payment_currency'] = alt_cur.upper()
     else:
-        new['payment_currency'] = last_cur
-    return new
+        new_data['payment_currency'] = last_cur
+    return new_data
 
 def upload_new_data_to_database(x):
     new = prepare_bbg_data(select.value, textbox.value)
@@ -228,10 +243,13 @@ app = dash.Dash(
      # server=server, url_base_pathname='/',
     meta_tags=[{"name": "viewport", 
                 "content": "width=device-width, initial-scale=1"}],
+    long_callback_manager=long_callback_manager,
+    # prevent_initial_callbacks=True,
     external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
+app.config.suppress_callback_exceptions = True
 
-fsym_id = data['fsym_id'].unique()
+# fsym_id = data['fsym_id'].unique()
 
 # print(data.dtypes)
 def highlight_special_case_row():
@@ -250,8 +268,47 @@ def highlight_special_case_row():
             'backgroundColor': '#fc8399',
             'color': 'white'
         }]
-seclist = []#TODO combine with the other Card component later
 
+@app.callback(
+    Output('modified-data-rows', 'style_data_conditional'),
+    Input('modified-data-rows', 'data'))
+def highlight_changed_cell(data):
+    df = pd.DataFrame(data)
+    lst_idx, lst_changed_cell = find_changed_cell(df)
+    return [
+        {
+            'if': {
+                'filter_query': '{{id}} = {}'.format(i),
+                'column_id': col
+            },
+            'backgroundColor': '#3D9970',
+            'color': 'white'
+        }
+        for i, col in zip(lst_idx, lst_changed_cell)
+    ]
+
+    
+def find_changed_cell(df):
+    df = df[~(df['action'] =='delete')]
+    cols = df.columns.tolist()
+    print('find_changed_cell')
+    print(cols)
+    lst_idx = []
+    lst_changed_cell = []
+    prev_row = df.loc[0]
+    for idx, row in df.loc[1:].iterrows():
+        for col in cols:
+            print('current row col')
+            print(row[col])
+            print( prev_row[col])
+            if row[col] != prev_row[col]:
+                lst_idx.append(idx)
+                lst_changed_cell.append(col)
+        prev_row = row
+    return lst_idx, lst_changed_cell
+seclist = []#TODO combine with the other Card component later
+# all_goods = []
+manual_list = []
 @app.callback(
     Output('new-data-data-table', 'data'),
     Output('new-data-data-table', 'columns'),
@@ -261,36 +318,49 @@ seclist = []#TODO combine with the other Card component later
     Output('no-data-msg', 'children'),
     Output('no-data-msg', 'is_open'),
     Output('main-panel-div', 'style'),
+    Output('modified-data-rows', 'columns'),
     Input('view-type-radio', 'value'),
     Input('data-table', 'data'))
+# @functools.lru_cache(maxsize=32)
 def load_selected_data(selected_review_option, datatable):
     df = pd.DataFrame(datatable)
     if selected_review_option == 'all_goods':
         has_data = all_goods is not None
         fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_data else []
-        df = df[df['fsym_id'].isin(all_goods['fsym_id'])]
+        df = df[df['fsym_id'].isin(all_goods['fsym_id'])] if has_data else pd.DataFrame([])
     if selected_review_option == 'mismatch': 
         has_data = manual_list is not None
         fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_data else []
-        df = df[df['fsym_id'].isin(manual_list)]
+        df = df[df['fsym_id'].isin(manual_list)] if has_data else pd.DataFrame([])
     if selected_review_option == 'skipped': 
         has_data = skipped.shape[0]
         fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_data else []
-        df = df[df['fsym_id'].isin(list(skipped['fsym_id'].unique()))]
+        df = df[df['fsym_id'].isin(list(skipped['fsym_id'].unique()))] if has_data else pd.DataFrame([])
         print(fsym_id_dropdown_options)
 
     print('Selected')#TODO
-    print(all_goods)
-    print(manual_list)
-    print(skipped['fsym_id'].unique())
-    print(has_data)
+    print('Selected: ')#TODO
+
+    # print(all_goods)
+    # print('all_goods')#TODO
+
+    # print(manual_list)
+    # print('manual_list')#TODO
+
+    # print(skipped['fsym_id'].unique())
+    # print('skipped')#TODO
+
+    # print(has_data)
     # if not has_data:
     no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     display_option = {'display': 'none'} if not has_data else {}
+    print(fsym_id_dropdown_options)
     return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns],\
            fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
            no_data_msg,\
-           not has_data, display_option   
+           not has_data, display_option,\
+           [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in df.columns]
+
 @app.callback(
     Output('data-table', 'data'),
     Output('data-table', 'columns'),
@@ -315,7 +385,15 @@ def load_selected_data(selected_review_option, datatable):
     # Output('mismatch-dropdown', 'options'),    
     # Output('load-data-msg', 'value'),
     Input('div-date-picker', 'date'),
-    Input('index-only-radio', 'value'))
+    Input('index-only-radio', 'value'),
+    running=[
+        (Output("div-date-picker", "disabled"), True, False),
+        (Output('index-only-radio', "options"), [{'disabled': True}], [{'disabled': False}])
+    ],
+    # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
+)
+# @functools.lru_cache(maxsize=32)
+# def load_data_to_dash(set_progress, update_date, index_flag):
 def load_data_to_dash(update_date, index_flag):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
     # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
@@ -329,26 +407,38 @@ def load_data_to_dash(update_date, index_flag):
     update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
     # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
     #TODO don't think splits is used anywhere. double check later
-    
+    # total=4
+    # i=0
     global skipped
-
     (new_data, skipped, pro_rata, splits) = \
         preprocess_bbg_data(new_data, update_list, index_flag, update_date)
+    # set_progress((str(i + 1),a str(total)))
+
     new_data = bbg_data_single_security(new_data)
+    # set_progress((str(i + 1), str(total)))
+
     skipped = process_skipped(skipped)
     seclist = sorted(list(new_data['fsym_id'].unique()))
+    # set_progress((str(i + 1), str(total)))
+
     global manual_list
     global all_goods
-    (manual_list, all_goods) = bulk_upload(new_data, update_date, new_data)
+    (manual_list, all_goods) = bulk_upload(new_data, update_date)
+    # set_progress((str(i + 1), str(total)))
+
     # has_all_goods = not all_goods.isempty()
     #  = not manual_list.isempty()
     # has_skipped = not skipped.isempty()
  
-
+    print('load_data_to_dash')
+    print(new_data.dtypes)
+    
     print('Loaded')#TODO
     print(all_goods)
     print(manual_list)
-    print(skipped.shape[0])
+    print(skipped)
+    print('new_data')
+    print(new_data)
     # print(has_data)
     # if not has_data:
     #     raise dash.exceptions.PreventUpdate
@@ -356,7 +446,7 @@ def load_data_to_dash(update_date, index_flag):
 
     # no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     # display_option = {'display': 'none'} if not has_data else {}
-    return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
+    return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns]
            # fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
            # no_data_msg,\
            # not has_data, display_option
@@ -370,34 +460,50 @@ def load_data_to_dash(update_date, index_flag):
             # [{"label": i, "value": i} for i in sorted(manual_list)]
             # manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns],\
 
-
+@app.callback(
+    Output('fsym-id-data-table', 'data'),
+    Input('fsym-id-dropdown', 'value'),
+    # State('modified-data-rows', 'data'),
+    # State('modified-data-rows', 'data_previous'),
+    Input('new-data-data-table', 'data'))
+def filter_fysm_id_and_undo_delete(selected, datatable):
+    if len(datatable) == 0: return dash.no_update
+    df = pd.DataFrame(datatable)
+    print("filter_fysm_id_and_undo_delete: datatbl")
+    print(df)
+    res = df[df['fsym_id'] == selected]
+    return res.to_dict('records')
 
 @app.callback(
     Output('basic-info', 'children'),
     Output('comparison-data-table', 'data'),
     Output('comparison-data-table', 'columns'),
-    Output('fsym-id-data-table', 'data'),
-    Output('fsym-id-data-table', 'columns'),
+    # Output('fsym-id-data-table', 'data'),
+    # Output('fsym-id-data-table', 'columns'),
     Output('fsym-id-graph', 'figure'),
     Output('comparison-msg', 'children'),
     # Output('load-data-msg', 'value'),
-    Input('fsym-id-dropdown', 'value'),
-    State('div-date-picker', 'date'),#TODO
-    State('new-data-data-table', 'data'))
-def get_basic_info(fsym_id, update_date, new_data):
+    # Input('fsym-id-dropdown', 'value'),
+    Input('fsym-id-data-table', 'data'),
+    State('div-date-picker', 'date'))
+def get_basic_info(new_data, update_date):
     new_data = pd.DataFrame(new_data)
+    fsym_id = new_data['fsym_id'].values[0]
+    print('get_basic_info')
+    print(new_data.dtypes)
+    print(fsym_id)
     global check_exist
     check_exist = check_existence(fsym_id)
     basic_info_str = basic_info(fsym_id, new_data)
     if not check_exist:
         comparison_msg = "This is a newly added."
-        new = new_data[new_data['fsym_id']==fsym_id].copy()
+        # new = new_data[new_data['fsym_id']==fsym_id].copy()
         factset = factset_new_data(fsym_id)
         comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset)
-        fig = plot_dividend_data_comparison(factset, new)
+        fig = plot_dividend_data_comparison(factset, new_data)
         # display(HTML(comparison.to_html()))
     else:
-        (last_cur, fstest_cur) = dividend_currency(fsym_id, new_data)
+        (last_cur, fstest_cur) = dividend_currency(new_data)
         # with outs2:
         comparison = compare_new_data_with_factset(fsym_id, update_date, new_data)
         if fstest_cur != last_cur:
@@ -406,14 +512,15 @@ def get_basic_info(fsym_id, update_date, new_data):
         # with outs:
         #     clear_output()
         # comparison = compare_new_data_with_factset(fsym_id, update_date, new_data)
-        new = new_data[new_data['fsym_id']==fsym_id].copy()
-        new['listing_currency'] = fstest_cur
-        new['payment_currency'] = last_cur
+        # new = new_data[new_data['fsym_id']==fsym_id].copy()
+        new_data['listing_currency'] = fstest_cur
+        new_data['payment_currency'] = last_cur
         comparison_msg = 'New Dividend Data'
         # display(HTML(new.to_html()))
         fig = plot_dividend_data(fsym_id, new_data)
     return basic_info_str, comparison.to_dict('records'), [{'name': i, 'id':i} for i in comparison.columns],\
-         new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns], fig, comparison_msg
+             fig, comparison_msg
+         # new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns],\
 
 @app.callback(
     Output('factset-graph', 'figure'),
@@ -421,11 +528,12 @@ def get_basic_info(fsym_id, update_date, new_data):
     Output('factset-card', 'style'),
     Output('factset-warning-msg', 'is_open'),
     Output('factset-warning-msg', 'children'),
-    Input('fsym-id-dropdown', 'value'),
-    State('new-data-data-table', 'data'))
-def plot_comparison(fsym_id, new_data):
-    new_data = pd.DataFrame(new_data)
-    bbg = new_data[new_data['fsym_id'] == fsym_id].copy()
+    # Input('fsym-id-dropdown', 'value'),
+    Input('fsym-id-data-table', 'data'))
+def plot_comparison(new_data):
+    bbg = pd.DataFrame(new_data)
+    # bbg = new_data[new_data['fsym_id'] == fsym_id].copy()
+    fsym_id = bbg['fsym_id'].values[0]
     query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
 
     try:
@@ -443,11 +551,12 @@ def plot_comparison(fsym_id, new_data):
     # Output('bbg-data-table', 'data'),
     # Output('bbg-data-table', 'columns'),
     # Output('load-data-msg', 'value'),
-    Input('fsym-id-dropdown', 'value'),
-    State('new-data-data-table', 'data'))
-def plot_bbg(fsym_id, new_data):
+    # Input('fsym-id-dropdown', 'value'),
+    # State('new-data-data-table', 'data'),
+    Input('fsym-id-data-table', 'data'))
+def plot_bbg(new_data):
     new_data = pd.DataFrame(new_data)
-    df = prepare_bbg_data(fsym_id, new_data)
+    df = prepare_bbg_data(new_data)
     
     # with outs2:
     #     clear_output()
@@ -505,8 +614,8 @@ def check_split_history(fsym_id):
                 order by p_split_date
             """
     df = data_importer_dash.load_data(query)
+    df.sort_values(by=['p_split_date'], ascending=False, inplace=True)
     data = df.to_dict('records') if df is not None else []
-    df.sort_values(by=['exdate'], ascending=False, inplace=True)
     cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
     return data, cols
 
@@ -606,7 +715,7 @@ def div_editor():
         # dbc.Row(html.Br()),
         
         dbc.Row(dbc.Col(dash_table.DataTable(
-            id='output-data-table',
+            id='fsym-id-data-table',
             columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
             [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
             [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
@@ -627,7 +736,7 @@ def div_editor():
                 'backgroundColor': 'white',
                 'fontWeight': 'bold'
             },
-            page_size=20,
+            # page_size=20,
             # style_table={'height': '300px', 'overflowY': 'auto'},
             style_data_conditional=highlight_special_case_row(),
             style_cell={
@@ -696,28 +805,27 @@ def div_editor():
     
         dbc.Row(dbc.Col(dash_table.DataTable(
             id='modified-data-rows',
-            columns= [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in data.columns],
             data=[],
             # filter_action="native",
             sort_action="native",
             sort_mode="multi",
             page_action="native",
             page_current= 0,
-            page_size= 30,
-            style_data_conditional=highlight_special_case_row(),
+            page_size= 10,
+            # style_data_conditional=highlight_special_case_row(),
             style_cell={
                 'overflow': 'hidden',
                 'textOverflow': 'ellipsis',
                 'maxWidth': 0,
             },
             row_deletable=True,
-            tooltip_data=[
-                {
-                    column: {'value': str(value), 'type': 'markdown'}
-                    for column, value in row.items()
-                } for row in data.to_dict('records')
-            ],
-            tooltip_duration=None
+            # tooltip_data=[
+            #     {
+            #         column: {'value': str(value), 'type': 'markdown'}
+            #         for column, value in row.items()
+            #     } for row in data.to_dict('records')
+            # ],
+            # tooltip_duration=None
         )), justify='center'),
         
         # dbc.Row(html.H5('Save changes'), justify='start'),
@@ -732,6 +840,10 @@ def core_functionalities():
             dbc.CardBody([
                 dbc.Row(dbc.Col([])),
                 dbc.Row(dbc.Col([])),
+                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info")), justify='center'),
+                html.Br(),
+                dbc.Row(dbc.Col(dbc.Label('Comparison table')), justify='center'),
+                
                 html.Div([
                     dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info")), justify='center'),
                     dash_table.DataTable(
@@ -741,12 +853,11 @@ def core_functionalities():
                 )]),
                 
                 html.Br(),
-                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info")), justify='center'),
-                html.Div([dash_table.DataTable(
-                    id='fsym-id-data-table',
-                    # columns=[{}],
-                    # data={}
-                )]),
+                # html.Div([dash_table.DataTable(
+                #     id='fsym-id-data-table',
+                #     # columns=[{}],
+                #     # data={}
+                # )]),
                 html.Br(),
                 div_editor(),
                 dcc.Graph(id='fsym-id-graph'),
@@ -855,7 +966,7 @@ def top_select_panel():
                 min_date_allowed=date(2000, 8, 5),
                 max_date_allowed=date.today(),
                 # initial_visible_month=date(2017, 8, 5),
-                date = date(2021, 12, 31),
+                date = date(2021, 11, 30),
                 # date=(datetime.today() + pd.offsets.MonthEnd(0)),
                 # disabled_days=,
                 # display_format='YYYYMMDD',
@@ -872,6 +983,8 @@ def top_select_panel():
                 value=False,
                 labelStyle={'display': 'inline-block'}),
             
+            html.Br(),
+            html.Progress(id="progress_bar"),
             html.Br(),
             dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
             dbc.RadioItems(
@@ -900,8 +1013,8 @@ app.layout = dbc.Container([
     top_select_panel(),
     # dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
     # dcc.Loading(id="is-loading-data", children=[dbc.Alert(id="is-loading-msg")], type="default"),
-    # dcc.Loading(id="is-loading-data", children=[div_uploader()], type="default"),
-    div_uploader(),
+    dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()], type="default"),
+    # div_uploader(),
     # html.Br(), div_editor()
     ], fluid=True)
 
@@ -919,21 +1032,22 @@ app.layout = dbc.Container([
 #         return datatable
 #     df = pd.DataFrame(datatable)
 #     return df[df['fsym_id'] == selected].to_dict('records')
-@app.callback(
-    Output('output-data-table', 'data'),
-    Input('fsym-id-dropdown', 'value'),
-    Input('modified-data-rows', 'data'),
-    State('modified-data-rows', 'data_previous'),
-    State('new-data-data-table', 'data'))
-def filter_fysm_id_and_undo_delete(selected, rows, rows_prev, datatable):
-    df = pd.DataFrame(datatable)
-    res = df[df['fsym_id'] == selected].to_dict('records')
-    return res + [row for row in rows_prev if row not in rows] if rows_prev is not None else res
+# @app.callback(
+#     Output('output-data-table', 'data'),
+#     Input('fsym-id-dropdown', 'value'),
+#     State('modified-data-rows', 'data'),
+#     State('modified-data-rows', 'data_previous'),
+#     State('new-data-data-table', 'data'))
+# def filter_fysm_id_and_undo_delete(selected, rows, rows_prev, datatable):
+#     df = pd.DataFrame(datatable)
+#     res = df[df['fsym_id'] == selected].to_dict('records')
+#     return res
+    # return res + [row for row in rows_prev if row not in rows] if rows_prev is not None else res
 #TODO!!!!! also make sure the row was deleted instead of modified
 
 #TODO
 # @app.callback(
-#     Output('data-table', 'data'),
+#     Output('new-data-data-table', 'data'),
 #     Input('output-data-table', 'data'),
 #     State('new-data-data-table', 'data'),
 #     State('modified-data-rows', 'data'),
@@ -947,12 +1061,33 @@ def filter_fysm_id_and_undo_delete(selected, rows, rows_prev, datatable):
 #     res = pd.concat([df, modified_df]).to_dict('records')
 #     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
 
+# @app.callback(
+#     Output('new-data-data-table', 'data'),
+#     Input('fsym-id-data-table', 'data'),
+#     State('new-data-data-table', 'data'),
+#     State('modified-data-rows', 'data'),
+#     State('modified-data-rows', 'data_previous'))
+# def update_data_table(modified_datatable, datatable, rows, rows_prev):
+#     df = pd.DataFrame(datatable)
+#     modified_df = pd.DataFrame(modified_datatable)  
+#     fsym_id = modified_df['fsym_id'].unique()[0]
+#     df = df.loc[~(df['fsym_id'] == fsym_id)]
+#     # df[df['fsym_id'] == fsym_id] = modified_df
+#     res = pd.concat([df, modified_df]).to_dict('records')
+#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res@app.callback(
+#     # Output('data-table', 'data'),
+#     Output('modified-data-rows', 'data'),
+#     # Input('data-table', 'data_timestamp'),
+#     Input('fsym-id-data-table', 'data_previous'),
+#     State('fsym-id-data-table', 'data'),
+#     State('modified-data-rows', 'data'))
+
 @app.callback(
     # Output('data-table', 'data'),
     Output('modified-data-rows', 'data'),
     # Input('data-table', 'data_timestamp'),
-    Input('output-data-table', 'data_previous'),
-    State('output-data-table', 'data'),
+    Input('fsym-id-data-table', 'data_previous'),
+    State('fsym-id-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
     len_rows = len(rows) if rows is not None else 0
@@ -972,6 +1107,7 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
     # if (len(rows) < len(rows_prev)):
     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
     return modified_rows
+
 
 #TODO
 # @app.callback(

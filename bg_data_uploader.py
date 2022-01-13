@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
 from bg_data_importer import DataImporter
 from datetime import datetime
-data = DataImporter(verbose=False)
+data_importer_uploader = DataImporter(verbose=False)#TODO changed
 bg_div_columns = ['fsym_id', 'listing_currency', 'payment_currency',
                   'declared_date', 'exdate', 'record_date', 'payment_date',
                   'payment_amount', 'div_type', 'div_freq', 'div_initiation',
@@ -35,13 +35,16 @@ def convert_div_type(div_type):
 def preprocess_bbg_data(df_, bbgid, index_flag, rdate):
     df = df_.copy()
     dates_cols = df.filter(like='Date').columns
+    # print('preprocess_bbg_data')
+    # print(dates_cols)
     df[dates_cols] = df[dates_cols].apply(pd.to_datetime, axis=1)
+    # print(df.dtypes)
     df.columns=[name.lower().replace(' ','_').replace('-','')
                 for name in df.columns]
     df = df.rename(columns={'security' : 'bbg_id'})
     df['bbg_id'] = df['bbg_id'].str.replace('/bbgid/', '')
     rdate = rdate.replace('-', '')
-    # bbgid = pd.read_csv(rf'S:\Shared\Scheduled_Jobs\input\sec_list_{rdate}.csv')
+    bbgid = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{rdate}.csv')
     bbgid = bbgid[['bbg_id','fsym_id', 'in_index', 'listing_currency']]
     df = pd.merge(df, bbgid, on='bbg_id', how='left')
     df.sort_values(['fsym_id','exdate'], inplace=True)
@@ -76,6 +79,8 @@ def factset_data_single_security(df, skip_flag=False):
                         'p_divs_recdatec':'record_date',
                         'currency':'listing_currency'},
               inplace=True)
+    print('factset_data_single_security:' )
+    print(df)
     df['div_initiation'] = 0
     df['skipped'] = skip_flag
     df['div_type'] = np.where(df['p_divs_s_pd']==1,'special','regular')
@@ -96,8 +101,11 @@ def factset_new_data(secid):
               left join fstest.sym_v1.sym_bbg bbg on bbg.fsym_id = bd.fsym_id
 			  where bd.fsym_id = '{secid}' {exdate_condition}
               """
-    df = data.load_data(query)
+    df = data_importer_uploader.load_data(query)
+    print('factset_new_data import: ')
+    print(df)
     df = factset_data_single_security(df)
+    print(df.dtypes)
     return df
 
 def bbg_data_single_security(df_, skip_flag=False, suspension=False):
@@ -114,19 +122,26 @@ def bbg_data_single_security(df_, skip_flag=False, suspension=False):
 
 def get_bg_div_data(secid):
     query = f"select * from fstest.dbo.bg_div where fsym_id = '{secid}'"
-    bg_data = data.load_data(query)
+    bg_data = data_importer_uploader.load_data(query)
     return bg_data
 
 def last_payment_exdate(secid):
     query = f"""
                 select max(exdate) from fstest.dbo.bg_div where fsym_id = '{secid}'
             """
-    last_date = data.load_data(query)
+    last_date = data_importer_uploader.load_data(query)
+    print(last_date)
     if pd.isna(last_date.iloc[0,0]):
         return None
     return last_date.iloc[0,0].strftime('%Y-%m-%d')
+#TODO
+def dividend_currency(crncy=None):
+    # crncy = new_data_[new_data_['fsym_id']==secid]
+    last_cur = crncy.iloc[0]['payment_currency']
+    fstest_cur = crncy.iloc[0]['listing_currency']
+    return (last_cur, fstest_cur)
 
-def dividend_currency(secid, new_data_=None):
+def dividend_currency_bulk_upload(secid, new_data_=None):
     crncy = new_data_[new_data_['fsym_id']==secid]
     last_cur = crncy.iloc[0]['payment_currency']
     fstest_cur = crncy.iloc[0]['listing_currency']
@@ -136,7 +151,7 @@ def check_existence(secid):
     query = f"""
              select 1 from fstest.dbo.bg_div where fsym_id = '{secid}'
     """
-    df = data.load_data(query)
+    df = data_importer_uploader.load_data(query)
     if df.shape[0] == 0:
         return False
     return True
@@ -164,7 +179,7 @@ def alternative_currency(secid, show_all=False):
             """
 
     try:
-        df = data.load_data(query)
+        df = data_importer_uploader.load_data(query)
     except Exception as e:
         print("No Data")
         return None
@@ -215,11 +230,11 @@ def basic_info(secid, new_data_):
             left join fstest.sym_v1.sym_ticker_region tr on tr.fsym_id = sc.fsym_id
             where sc.fsym_id = '{secid}'
             """
-    info = data.load_data(query)
+    info = data_importer_uploader.load_data(query)
     name = info.iloc[0]['proper_name']
     ticker = info.iloc[0]['ticker']
-    fs_cur = new_data_.loc[new_data_['fsym_id']==secid, 'listing_currency'].values[0]
-    bbg_cur = new_data_.loc[new_data_['fsym_id']==secid, 'payment_currency'].values[0]
+    fs_cur = new_data_['listing_currency'].values[0]
+    bbg_cur = new_data_['payment_currency'].values[0]
 
     return f"{secid} | {name} | {ticker} |BBG Crncy: {bbg_cur} | FS Crncy: {fs_cur}"
 
@@ -244,19 +259,19 @@ def compare_new_data_with_factset(secid, update_date, new_data):
     return comp
 
 # TODO changed function signature, added new_data as an arg
-def bulk_upload(df, update_date, new_data):
+def bulk_upload(df, update_date):
     success_list = []
     checked_list = []
     seclist = sorted(list(df['fsym_id'].unique()))
     for secid in seclist:
         new = df[df['fsym_id']==secid].copy()
-        (last_cur, fstest_cur) = dividend_currency(secid, df)
+        (last_cur, fstest_cur) = dividend_currency_bulk_upload(secid, df)
         if fstest_cur != last_cur:
             # print(secid + ' | Possible currency change')
             continue
-        # new['listing_currency'] = fstest_cur
-        # new['payment_currency'] = fstest_cur
-        comp = compare_new_data_with_factset(secid, update_date, new_data)
+        new['listing_currency'] = fstest_cur
+        new['payment_currency'] = fstest_cur
+        comp = compare_new_data_with_factset(secid, update_date, df)
         if not (comp[['check_amount', 'check_payment_date']]=='Good').all().all():
             # print(secid + ' | Mismatch found.')
             continue
