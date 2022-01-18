@@ -80,6 +80,7 @@ cur_list = ['USD','CAD','EUR','GBP','JPY']
 # Div Uploader Helpers
 # =============================================================================
 def plot_dividend_data(fsym_id, new_data, alt_cur=None):
+    msg = ''
     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'},
                                      yaxis=dict(title='Amount'),
                                      yaxis2=dict(title='Freq', overlaying='y', side='right', range=[0, 14])))
@@ -95,10 +96,12 @@ def plot_dividend_data(fsym_id, new_data, alt_cur=None):
     
     already_exist = list(set(bg['exdate']).intersection(set(new['exdate'])))
     if len(already_exist) > 0:
-        with outs2:
-            clear_output()
-            display(f'Payments on {str(already_exist)} already exists.')
-        return
+        already_exist = [date.strftime('%Y/%m/%d/') for date in already_exist],
+        msg = f'Payments on {already_exist} already exists.'
+        # with outs2:
+        #     clear_output()
+            # display(f'Payments on {str(already_exist)} already exists.')
+        return fig, msg
     fig.add_trace(go.Scatter(x=new_regular['exdate'], y=new_regular['payment_amount'], mode='lines+markers', name='New Regular', line=dict(color='orchid')))
     fig.add_trace(go.Scatter(x=new_special['exdate'], y=new_special['payment_amount'], mode='markers',name='New Special', line=dict(color='red')))
     fig.add_trace(go.Scatter(x=new_special['exdate'], y=new_special['div_freq'], mode='markers', name='Div Freq', line=dict(color='green'), yaxis='y2'))
@@ -113,8 +116,8 @@ def plot_dividend_data(fsym_id, new_data, alt_cur=None):
     
     if new.shape[0]>1:
         fig.update_layout(shapes=[dict(type="rect", xref="x", yref="paper",x0=new['exdate'].min(),y0=0,x1=new['exdate'].max(),y1=1,fillcolor="LightSalmon",opacity=0.5,layer="below",line_width=0)])
-    
-    return fig
+    return fig, msg
+
 #TODO func signature change
 def compare_new_data_with_factset(secid, update_date, bbg, factset=None):
     if factset is None:
@@ -125,8 +128,8 @@ def compare_new_data_with_factset(secid, update_date, bbg, factset=None):
     # print('preprocess_bbg_data')
     # print(dates_cols)
     bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
-    print(bbg.dtypes)
-    print(factset.dtypes)
+    # print(bbg.dtypes)
+    # print(factset.dtypes)
     new_data_comparison = pd.merge(bbg, factset, how='outer', on=['fsym_id','exdate','div_type'], suffixes=('_bbg','_factset'))
     new_data_comparison = new_data_comparison.sort_values(['exdate'])
     new_data_comparison = new_data_comparison.reset_index(drop=True)
@@ -243,7 +246,7 @@ app = dash.Dash(
      # server=server, url_base_pathname='/',
     meta_tags=[{"name": "viewport", 
                 "content": "width=device-width, initial-scale=1"}],
-    long_callback_manager=long_callback_manager,
+    # long_callback_manager=long_callback_manager,
     # prevent_initial_callbacks=True,
     external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
@@ -275,95 +278,85 @@ def highlight_special_case_row():
 def highlight_changed_cell(data):
     df = pd.DataFrame(data)
     lst_idx, lst_changed_cell = find_changed_cell(df)
+    print('highlight_changed_cell')
+    print(lst_idx)
+    print(lst_changed_cell)
     return [
         {
             'if': {
-                'filter_query': '{{id}} = {}'.format(i),
+                'filter_query': '{{id}} = {}'.format(i),  # matching rows of a hidden column with the id, `id`
+                # 'row_index': i,
                 'column_id': col
             },
-            'backgroundColor': '#3D9970',
+            'backgroundColor': 'DodgerBlue',
             'color': 'white'
         }
         for i, col in zip(lst_idx, lst_changed_cell)
     ]
-
-    
 def find_changed_cell(df):
     df = df[~(df['action'] =='delete')]
-    cols = df.columns.tolist()
-    print('find_changed_cell')
-    print(cols)
-    lst_idx = []
+    cols = df.columns[1:12].tolist()
+    # print('find_changed_cell')
+    # print(cols)
     lst_changed_cell = []
-    prev_row = df.loc[0]
-    for idx, row in df.loc[1:].iterrows():
-        for col in cols:
-            print('current row col')
-            print(row[col])
-            print( prev_row[col])
-            if row[col] != prev_row[col]:
-                lst_idx.append(idx)
-                lst_changed_cell.append(col)
-        prev_row = row
-    return lst_idx, lst_changed_cell
+
+    # rows_orig = df[df['action'] == 'original'].reset_index()
+    # rows_update = df[df['action'] == 'update'].reset_index()
+    # num_row = rows_orig.shape[0]
+    lst_idx = []
+    # print(rows_orig)
+    # print(rows_update)
+    for idx, row in df.iterrows():
+        # prev_row = row
+        # print(row_o)
+        # print(row_u)
+        if row['action'] == 'update':
+            print(f'cycle {idx}::')
+            next_row = df.loc[idx+1]
+            print('row')
+            print(row)
+            print('next_row')
+            print(next_row)
+            for col in cols:
+                if row[col] != next_row[col]:
+                    lst_idx = lst_idx + [idx, idx+1]
+                    lst_changed_cell = lst_changed_cell + [col, col]
+        print('lst_idx')
+        print(lst_idx)
+    return lst_idx, lst_changed_cell   
+# def find_changed_cell(df):
+#     # df = df[~(df['action'] =='delete')]
+#     cols = df.columns[1:12].tolist()
+#     # print('find_changed_cell')
+#     # print(cols)
+#     lst_changed_cell = []
+
+#     rows_orig = df[df['action'] == 'original'].reset_index()
+#     rows_update = df[df['action'] == 'update'].reset_index()
+#     num_row = rows_orig.shape[0]
+#     lst_idx = [i for i in range(2*num_row)]
+#     # print(rows_orig)
+#     # print(rows_update)
+#     for i in range(num_row):
+#         row_o = rows_orig.loc[i]
+#         # print(row_o)
+#         row_u = rows_update.loc[i]       
+#         # print(row_u)
+
+#         for col in cols:
+#             if row_o[col] != row_u[col]:
+#                 lst_changed_cell = lst_changed_cell + [col, col]
+#     return lst_idx, lst_changed_cell
 seclist = []#TODO combine with the other Card component later
 # all_goods = []
-manual_list = []
-@app.callback(
-    Output('new-data-data-table', 'data'),
-    Output('new-data-data-table', 'columns'),
-        # Output('all-goods-msg', 'is_open'),
-    Output('fsym-id-dropdown', 'options'),
-    Output('fsym-id-dropdown', 'value'),
-    Output('no-data-msg', 'children'),
-    Output('no-data-msg', 'is_open'),
-    Output('main-panel-div', 'style'),
-    Output('modified-data-rows', 'columns'),
-    Input('view-type-radio', 'value'),
-    Input('data-table', 'data'))
-# @functools.lru_cache(maxsize=32)
-def load_selected_data(selected_review_option, datatable):
-    df = pd.DataFrame(datatable)
-    if selected_review_option == 'all_goods':
-        has_data = all_goods is not None
-        fsym_id_dropdown_options = [{"label": i, "value": i} for i in sorted(all_goods['fsym_id'].to_list())] if has_data else []
-        df = df[df['fsym_id'].isin(all_goods['fsym_id'])] if has_data else pd.DataFrame([])
-    if selected_review_option == 'mismatch': 
-        has_data = manual_list is not None
-        fsym_id_dropdown_options =[{"label": i, "value": i} for i in sorted(manual_list)] if has_data else []
-        df = df[df['fsym_id'].isin(manual_list)] if has_data else pd.DataFrame([])
-    if selected_review_option == 'skipped': 
-        has_data = skipped.shape[0]
-        fsym_id_dropdown_options = [{"label": i, "value": i} for i in list(skipped['fsym_id'].unique())] if has_data else []
-        df = df[df['fsym_id'].isin(list(skipped['fsym_id'].unique()))] if has_data else pd.DataFrame([])
-        print(fsym_id_dropdown_options)
-
-    print('Selected')#TODO
-    print('Selected: ')#TODO
-
-    # print(all_goods)
-    # print('all_goods')#TODO
-
-    # print(manual_list)
-    # print('manual_list')#TODO
-
-    # print(skipped['fsym_id'].unique())
-    # print('skipped')#TODO
-
-    # print(has_data)
-    # if not has_data:
-    no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
-    display_option = {'display': 'none'} if not has_data else {}
-    print(fsym_id_dropdown_options)
-    return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns],\
-           fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
-           no_data_msg,\
-           not has_data, display_option,\
-           [{'name': 'action', 'id':'action'}]+[{'name': i, 'id':i} for i in df.columns]
-
-@app.callback(
+# # manual_list = []
+#     dcc.Store(id='all-goods-list'),
+#     dcc.Store(id='mismatch-list'),
+#     dcc.Store(id='skipped-list'),
+@app.long_callback(
     Output('data-table', 'data'),
     Output('data-table', 'columns'),
+    Output('mismatch-list', 'data'),
     # Output('all-goods-data-table', 'data'),
     # Output('all-goods-data-table', 'columns'),
     # Output('skipped-data-table', 'data'),
@@ -384,61 +377,64 @@ def load_selected_data(selected_review_option, datatable):
     # Output('skipped-dropdown', 'options'),
     # Output('mismatch-dropdown', 'options'),    
     # Output('load-data-msg', 'value'),
-    Input('div-date-picker', 'date'),
+    Input('div-date-picker', 'date'), 
     Input('index-only-radio', 'value'),
     running=[
         (Output("div-date-picker", "disabled"), True, False),
-        (Output('index-only-radio', "options"), [{'disabled': True}], [{'disabled': False}])
+        # (Output('index-only-radio', "options"), [{'disabled': True}], [{'disabled': False}])
+        (Output("main-panel-div", "style"), {'display': 'none'}, {}),
+        (Output("view-type-div", "style"), {'display': 'none'}, {}),
     ],
-    # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
+    manager=long_callback_manager,
+    progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
 )
 # @functools.lru_cache(maxsize=32)
-# def load_data_to_dash(set_progress, update_date, index_flag):
-def load_data_to_dash(update_date, index_flag):
+def load_data_to_dash(set_progress, update_date, index_flag):
+# def load_data_to_dash(update_date, index_flag):
     # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
     # update_date = input(f"Enter update date in yyyy-mm-dd format (Default: '{monthend_date}'): ")
     # if update_date == "":
     #     update_date = monthend_date
     print(f'update_date:{update_date}')
-    
-    f_date = update_date.replace('-','')#TODO!!!!!!!!!
-
+    f_date = update_date.replace('-','')
     new_data=pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
     update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
     # splits = pd.read_csv(main_dir / Path(f"input\splits_{f_date}.csv")) 
     #TODO don't think splits is used anywhere. double check later
-    # total=4
-    # i=0
-    global skipped
+    total=4
+    i=0
+    # global skipped
     (new_data, skipped, pro_rata, splits) = \
         preprocess_bbg_data(new_data, update_list, index_flag, update_date)
-    # set_progress((str(i + 1),a str(total)))
+    
+    set_progress((str(i + 1), str(total)))
 
     new_data = bbg_data_single_security(new_data)
-    # set_progress((str(i + 1), str(total)))
+    set_progress((str(i + 1), str(total)))
 
     skipped = process_skipped(skipped)
     seclist = sorted(list(new_data['fsym_id'].unique()))
-    # set_progress((str(i + 1), str(total)))
+    set_progress((str(i + 1), str(total)))
 
-    global manual_list
-    global all_goods
+    # global manual_list
+    # global all_goods
     (manual_list, all_goods) = bulk_upload(new_data, update_date)
-    # set_progress((str(i + 1), str(total)))
-
-    # has_all_goods = not all_goods.isempty()
-    #  = not manual_list.isempty()
-    # has_skipped = not skipped.isempty()
+    set_progress((str(i + 1), str(total)))
  
     print('load_data_to_dash')
-    print(new_data.dtypes)
+    # print(new_data.dtypes)
     
     print('Loaded')#TODO
     print(all_goods)
     print(manual_list)
     print(skipped)
-    print('new_data')
-    print(new_data)
+    # print('new_data')
+    # print(new_data)
+    dropdown_options = pd.DataFrame({'all_goods': pd.Series(sorted(all_goods['fsym_id'].to_list())) if all_goods is not None else pd.Series([]),
+                  'mismatch': pd.Series(sorted(manual_list)) if manual_list is not None else pd.Series([]),
+                  'skipped': pd.Series(skipped['fsym_id'].unique()) if skipped is not None else pd.Series([])})
+    # print(dropdown_options)
+ 
     # print(has_data)
     # if not has_data:
     #     raise dash.exceptions.PreventUpdate
@@ -446,7 +442,8 @@ def load_data_to_dash(update_date, index_flag):
 
     # no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     # display_option = {'display': 'none'} if not has_data else {}
-    return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns]
+    return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
+            dropdown_options.to_dict('records')
            # fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
            # no_data_msg,\
            # not has_data, display_option
@@ -461,6 +458,72 @@ def load_data_to_dash(update_date, index_flag):
             # manual_list.to_dict('records'), [{'name': i, 'id':i} for i in manual_list.columns],\
 
 @app.callback(
+    Output('new-data-data-table', 'data'),
+    Output('new-data-data-table', 'columns'),
+        # Output('all-goods-msg', 'is_open'),
+    Output('fsym-id-dropdown', 'options'),
+    Output('fsym-id-dropdown', 'value'),
+    Output('no-data-msg', 'children'),
+    Output('no-data-msg', 'is_open'),
+    # Output('main-panel-div', 'style'),
+    Output('modified-data-rows', 'columns'),
+    Input('view-type-radio', 'value'),
+    Input('data-table', 'data'),
+    Input('mismatch-list', 'data'))
+# @functools.lru_cache(maxsize=32)
+def load_selected_data(selected_review_option, datatable, data):
+    df = pd.DataFrame(datatable)
+    df_selection = pd.DataFrame(data)
+    print('load_selected_data')
+    print(df_selection)
+    all_goods = df_selection['all_goods'].unique()
+    manual_list = df_selection['mismatch'].unique()
+    skipped = df_selection['skipped'].unique()
+    # print('load_selected_data')
+    # print(datatable)
+    # print(df)
+    # print(manual_list)
+
+    if selected_review_option == 'all_goods':
+        selected_ids = all_goods
+    if selected_review_option == 'mismatch':
+        selected_ids = manual_list
+    if selected_review_option == 'skipped': 
+        selected_ids = skipped       
+    
+    if selected_ids[-1] is None:
+        selected_ids = selected_ids[:-1] 
+    has_data = selected_ids != []
+    fsym_id_dropdown_options = [{"label": i, "value": i} for i in selected_ids] if has_data else []
+    df = df[df['fsym_id'].isin(selected_ids)] if has_data else pd.DataFrame([])
+
+    # print(fsym_id_dropdown_options)
+
+    print('Selected')#TODO
+    print('Selected: ')#TODO
+
+    print(all_goods)
+    # print('all_goods')#TODO
+
+    print(manual_list)
+    # print('manual_list')#TODO
+
+    # print(skipped['fsym_id'].unique())
+    print(skipped)#TODO
+
+    # print(has_data)
+    # if not has_data:
+    no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
+    display_option = {'display': 'none'} if not has_data else {}
+    print(fsym_id_dropdown_options)
+    return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns],\
+           fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'] if has_data else None,\
+           no_data_msg,\
+           not has_data,\
+           [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+
+
+@app.callback(
     Output('fsym-id-data-table', 'data'),
     Input('fsym-id-dropdown', 'value'),
     # State('modified-data-rows', 'data'),
@@ -469,8 +532,8 @@ def load_data_to_dash(update_date, index_flag):
 def filter_fysm_id_and_undo_delete(selected, datatable):
     if len(datatable) == 0: return dash.no_update
     df = pd.DataFrame(datatable)
-    print("filter_fysm_id_and_undo_delete: datatbl")
-    print(df)
+    # print("filter_fysm_id_and_undo_delete: datatbl")
+    # print(df)
     res = df[df['fsym_id'] == selected]
     return res.to_dict('records')
 
@@ -482,6 +545,7 @@ def filter_fysm_id_and_undo_delete(selected, datatable):
     # Output('fsym-id-data-table', 'columns'),
     Output('fsym-id-graph', 'figure'),
     Output('comparison-msg', 'children'),
+    Output('payment-exist-msg', 'children'),
     # Output('load-data-msg', 'value'),
     # Input('fsym-id-dropdown', 'value'),
     Input('fsym-id-data-table', 'data'),
@@ -490,11 +554,12 @@ def get_basic_info(new_data, update_date):
     new_data = pd.DataFrame(new_data)
     fsym_id = new_data['fsym_id'].values[0]
     print('get_basic_info')
-    print(new_data.dtypes)
-    print(fsym_id)
+    # print(new_data.dtypes)
+    # print(fsym_id)
     global check_exist
     check_exist = check_existence(fsym_id)
     basic_info_str = basic_info(fsym_id, new_data)
+    payment_exist_msg = ''
     if not check_exist:
         comparison_msg = "This is a newly added."
         # new = new_data[new_data['fsym_id']==fsym_id].copy()
@@ -517,9 +582,9 @@ def get_basic_info(new_data, update_date):
         new_data['payment_currency'] = last_cur
         comparison_msg = 'New Dividend Data'
         # display(HTML(new.to_html()))
-        fig = plot_dividend_data(fsym_id, new_data)
+        fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data)
     return basic_info_str, comparison.to_dict('records'), [{'name': i, 'id':i} for i in comparison.columns],\
-             fig, comparison_msg
+             fig, comparison_msg, payment_exist_msg
          # new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns],\
 
 @app.callback(
@@ -840,10 +905,11 @@ def core_functionalities():
             dbc.CardBody([
                 dbc.Row(dbc.Col([])),
                 dbc.Row(dbc.Col([])),
-                dbc.Row(dbc.Col(dbc.Alert(id="basic-info", color="info")), justify='center'),
+                dbc.Row(dbc.Col(dcc.Markdown(id="basic-info")), justify='center'),
                 html.Br(),
-                dbc.Row(dbc.Col(dbc.Label('Comparison table')), justify='center'),
-                
+                # dbc.Row(dbc.Col(dbc.Label('Comparison table')), justify='center'),
+                html.Div(id='payment-exist-msg'), 
+                html.Br(),
                 html.Div([
                     dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info")), justify='center'),
                     dash_table.DataTable(
@@ -851,8 +917,7 @@ def core_functionalities():
                         # columns=[{}],
                         # data={}
                 )]),
-                
-                html.Br(),
+
                 # html.Div([dash_table.DataTable(
                 #     id='fsym-id-data-table',
                 #     # columns=[{}],
@@ -941,8 +1006,8 @@ main_panel = html.Div(dbc.Card(
         # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
         # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
 
-
-        dcc.Loading(id="is-loading-data", children=[fsym_id_selection()], type="default"),
+        fsym_id_selection(),
+        # dcc.Loading(id="is-loading-data", children=[fsym_id_selection()], type="default"),
         core_functionalities(),
         
         
@@ -955,6 +1020,17 @@ main_panel = html.Div(dbc.Card(
                         width=2), justify='end'),
         ])], style={}), id='main-panel-div')
 
+data_view_type_selection = html.Div(id='view-type-div', children=[dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
+            dbc.RadioItems(
+                id='view-type-radio',
+                options=[
+                    {'label': 'All Goods', 'value': 'all_goods'},
+                    {'label': 'Mismatched', 'value': 'mismatch'},
+                    {'label': 'Skipped', 'value': 'skipped'}
+                ],
+                # value='mismatch',
+                value='mismatch',
+                inline=True)])
 def top_select_panel():
     return dbc.Card(
         dbc.CardBody([
@@ -966,7 +1042,7 @@ def top_select_panel():
                 min_date_allowed=date(2000, 8, 5),
                 max_date_allowed=date.today(),
                 # initial_visible_month=date(2017, 8, 5),
-                date = date(2021, 11, 30),
+                date = date(2021, 12, 31),
                 # date=(datetime.today() + pd.offsets.MonthEnd(0)),
                 # disabled_days=,
                 # display_format='YYYYMMDD',
@@ -986,34 +1062,28 @@ def top_select_panel():
             html.Br(),
             html.Progress(id="progress_bar"),
             html.Br(),
-            dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
-            dbc.RadioItems(
-                id='view-type-radio',
-                options=[
-                    {'label': 'All Goods', 'value': 'all_goods'},
-                    {'label': 'Mismatched', 'value': 'mismatch'},
-                    {'label': 'Skipped', 'value': 'skipped'}
-                ],
-                # value='mismatch',
-                value='mismatch',
-                inline=True),
+            data_view_type_selection,
             html.Hr(),
             ]), className='mt-3')
 
 
 def div_uploader():
    return html.Div([
-       
         main_panel,
        ], id='uploader')
 
 
 # App Layout
 app.layout = dbc.Container([
+    dcc.Store(id='all-goods-list'),
+    dcc.Store(id='mismatch-list'),
+    dcc.Store(id='skipped-list'),
+
     top_select_panel(),
     # dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
     # dcc.Loading(id="is-loading-data", children=[dbc.Alert(id="is-loading-msg")], type="default"),
-    dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()], type="default"),
+    # dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()], type="default"),
+    div_uploader(),
     # div_uploader(),
     # html.Br(), div_editor()
     ], fluid=True)
@@ -1106,6 +1176,10 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
     #     modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
     # if (len(rows) < len(rows_prev)):
     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
+    idx = 0
+    for row in modified_rows:
+        row.update({'id': idx})
+        idx = idx + 1
     return modified_rows
 
 
@@ -1124,7 +1198,7 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
 #         datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
 #         df = df.astype(datatypes)
 #         print(df.dtypes)
-         # df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+#           df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
 #         df.to_csv('edited_div_data')
 #         return 'Data saved to DB', 'success'
 
