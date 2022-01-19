@@ -583,7 +583,7 @@ def filter_fysm_id_data(selected, datatable):
     # Output('fsym-id-data-table', 'columns'),
     Output('fsym-id-graph', 'figure'),
     Output('comparison-msg', 'children'),
-    Output('payment-exist-msg', 'children'),
+    # Output('payment-exist-msg', 'children'),
     # Output('load-data-msg', 'value'),
     # Input('fsym-id-dropdown', 'value'),
     Input('fsym-id-data-table', 'data'),
@@ -621,8 +621,9 @@ def get_basic_info(new_data, update_date):
         comparison_msg = 'New Dividend Data'
         # display(HTML(new.to_html()))
         fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data)
+        if payment_exist_msg != '': comparison_msg = payment_exist_msg 
     return basic_info_str, comparison.to_dict('records'), [{'name': i, 'id':i} for i in comparison.columns],\
-             fig, comparison_msg, payment_exist_msg
+             fig, comparison_msg
          # new.to_dict('records'), [{'name': i, 'id':i} for i in new.columns],\
 
 @app.callback(
@@ -962,7 +963,7 @@ def core_functionalities():
                 #     # data={}
                 # )]),
                 html.Br(),
-                div_editor(),
+                # div_editor(),
                 dcc.Graph(id='fsym-id-graph'),
                 comparison_panel,
 
@@ -1125,7 +1126,7 @@ app.layout = dbc.Container([
     # dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()], type="default"),
     div_uploader(),
     # div_uploader(),
-    # html.Br(), div_editor()
+    html.Br(), div_editor()
     ], fluid=True)
 
 # @app.callback(Output("is-loading-msg", "children"), Input("main-panel", "value"))
