@@ -278,9 +278,9 @@ def highlight_special_case_row():
 def highlight_changed_cell(data):
     df = pd.DataFrame(data)
     lst_idx, lst_changed_cell = find_changed_cell(df)
-    print('highlight_changed_cell')
-    print(lst_idx)
-    print(lst_changed_cell)
+    # print('highlight_changed_cell')
+    # print(lst_idx)
+    # print(lst_changed_cell)
     return [
         {
             'if': {
@@ -311,18 +311,19 @@ def find_changed_cell(df):
         # print(row_o)
         # print(row_u)
         if row['action'] == 'update':
-            print(f'cycle {idx}::')
+            # print(f'cycle {idx}::')
             next_row = df.loc[idx+1]
-            print('row')
-            print(row)
-            print('next_row')
-            print(next_row)
+            # print('row')
+            # print(row)
+            # print('next_row')
+            # print(next_row)
             for col in cols:
-                if row[col] != next_row[col]:
+                both_nan = (row[col] != row[col]) and (next_row[col] != next_row[col])
+                if (row[col] != next_row[col]) and not both_nan:
                     lst_idx = lst_idx + [idx, idx+1]
                     lst_changed_cell = lst_changed_cell + [col, col]
-        print('lst_idx')
-        print(lst_idx)
+        # print('lst_idx')
+        # print(lst_idx)
     return lst_idx, lst_changed_cell   
 # def find_changed_cell(df):
 #     # df = df[~(df['action'] =='delete')]
@@ -357,6 +358,7 @@ seclist = []#TODO combine with the other Card component later
     Output('data-table', 'data'),
     Output('data-table', 'columns'),
     Output('mismatch-list', 'data'),
+    Output('progress-div', 'style'),
     # Output('all-goods-data-table', 'data'),
     # Output('all-goods-data-table', 'columns'),
     # Output('skipped-data-table', 'data'),
@@ -381,7 +383,8 @@ seclist = []#TODO combine with the other Card component later
     Input('index-only-radio', 'value'),
     running=[
         (Output("div-date-picker", "disabled"), True, False),
-        # (Output('index-only-radio', "options"), [{'disabled': True}], [{'disabled': False}])
+        # (Output('index-only-radio', "options"), [{'disabled': True}, {'disabled': True}], [{'disabled': False}, {'disabled': False}]),
+        # (Output("index-only-radio", "style"), {'display': 'none'}, {}),
         (Output("main-panel-div", "style"), {'display': 'none'}, {}),
         (Output("view-type-div", "style"), {'display': 'none'}, {}),
     ],
@@ -443,7 +446,7 @@ def load_data_to_dash(set_progress, update_date, index_flag):
     # no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     # display_option = {'display': 'none'} if not has_data else {}
     return new_data.to_dict('records'), [{'name': i, 'id':i} for i in new_data.columns],\
-            dropdown_options.to_dict('records')
+            dropdown_options.to_dict('records'), {'display': 'none'}
            # fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'],\
            # no_data_msg,\
            # not has_data, display_option
@@ -465,13 +468,16 @@ def load_data_to_dash(set_progress, update_date, index_flag):
     Output('fsym-id-dropdown', 'value'),
     Output('no-data-msg', 'children'),
     Output('no-data-msg', 'is_open'),
-    # Output('main-panel-div', 'style'),
+    Output('main-panel', 'style'),
     Output('modified-data-rows', 'columns'),
     Input('view-type-radio', 'value'),
     Input('data-table', 'data'),
-    Input('mismatch-list', 'data'))
+    Input('mismatch-list', 'data'),
+    Input('modified-data-rows', 'data'),
+    State('modified-data-rows', 'data_previous'),
+    State('fsym-id-data-table', 'data'))
 # @functools.lru_cache(maxsize=32)
-def load_selected_data(selected_review_option, datatable, data):
+def load_selected_data(selected_review_option, datatable, data, rows, rows_prev, modified_datatable):
     df = pd.DataFrame(datatable)
     df_selection = pd.DataFrame(data)
     print('load_selected_data')
@@ -493,35 +499,67 @@ def load_selected_data(selected_review_option, datatable, data):
     
     if selected_ids[-1] is None:
         selected_ids = selected_ids[:-1] 
-    has_data = selected_ids != []
+    has_data = selected_ids.size > 0
     fsym_id_dropdown_options = [{"label": i, "value": i} for i in selected_ids] if has_data else []
     df = df[df['fsym_id'].isin(selected_ids)] if has_data else pd.DataFrame([])
 
     # print(fsym_id_dropdown_options)
 
-    print('Selected')#TODO
-    print('Selected: ')#TODO
+    # print('Selected')#TODO
+    # print('Selected: ')#TODO
 
-    print(all_goods)
-    # print('all_goods')#TODO
+    # print(all_goods)
+    # # print('all_goods')#TODO
 
-    print(manual_list)
-    # print('manual_list')#TODO
+    # print(manual_list)
+    # # print('manual_list')#TODO
 
-    # print(skipped['fsym_id'].unique())
-    print(skipped)#TODO
+    # # print(skipped['fsym_id'].unique())
+    # print(skipped)#TODO
 
     # print(has_data)
     # if not has_data:
     no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     display_option = {'display': 'none'} if not has_data else {}
-    print(fsym_id_dropdown_options)
-    return df.to_dict('records'), [{'name': i, 'id':i} for i in df.columns],\
+    
+    modified_df = pd.DataFrame(modified_datatable) 
+    print('modified_df')
+    print(modified_df)
+    if modified_df.shape[0] > 0: 
+        fsym_id = modified_df['fsym_id'].unique()[0]
+        df = df.loc[~(df['fsym_id'] == fsym_id)]
+        # df[df['fsym_id'] == fsym_id] = modified_df
+        res = pd.concat([df, modified_df])
+        print('res')
+        print(res)
+        res = res.to_dict('records')
+    else:
+        print('res for empty case')
+        print(df)
+        res = df.to_dict('records')
+    # print('fsym_id_dropdown_options')
+    # print(fsym_id_dropdown_options)
+    undo_delete_rows = [row for row in rows_prev if row not in rows] if rows is not None and rows_prev is not None else []
+    res = res + undo_delete_rows
+    return res,\
+        [{'name': i, 'id':i} for i in df.columns],\
            fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'] if has_data else None,\
            no_data_msg,\
-           not has_data,\
+           not has_data, display_option,\
            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
-
+#     Output('new-data-data-table', 'data'),
+#     Input('output-data-table', 'data'),
+#     State('new-data-data-table', 'data'),
+#     State('modified-data-rows', 'data'),
+#     State('modified-data-rows', 'data_previous'))
+# def update_data_table(modified_datatable, datatable, rows, rows_prev):
+#     df = pd.DataFrame(datatable)
+#     modified_df = pd.DataFrame(modified_datatable)  
+#     fsym_id = modified_df['fsym_id'].unique()[0]
+#     df = df.loc[~(df['fsym_id'] == fsym_id)]
+#     # df[df['fsym_id'] == fsym_id] = modified_df
+#     res = pd.concat([df, modified_df]).to_dict('records')
+#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
 
 @app.callback(
     Output('fsym-id-data-table', 'data'),
@@ -529,8 +567,8 @@ def load_selected_data(selected_review_option, datatable, data):
     # State('modified-data-rows', 'data'),
     # State('modified-data-rows', 'data_previous'),
     Input('new-data-data-table', 'data'))
-def filter_fysm_id_and_undo_delete(selected, datatable):
-    if len(datatable) == 0: return dash.no_update
+def filter_fysm_id_data(selected, datatable):
+    if datatable is None: return dash.no_update
     df = pd.DataFrame(datatable)
     # print("filter_fysm_id_and_undo_delete: datatbl")
     # print(df)
@@ -979,7 +1017,9 @@ skipped_content = dbc.Card(
     className="mt-3",
 )
 
-main_panel = html.Div(dbc.Card(
+main_panel = html.Div([
+    dbc.Alert(id="no-data-msg", color="info", is_open=False),
+    dbc.Card(
     id = 'main-panel',
     children = [dbc.CardBody([
 
@@ -1002,7 +1042,7 @@ main_panel = html.Div(dbc.Card(
 
             
         # html.H2('Show All Goods'),
-        dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
+        # dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
         # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
         # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
 
@@ -1018,7 +1058,7 @@ main_panel = html.Div(dbc.Card(
         dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
                                    children='Upload to DB', color='success'), 
                         width=2), justify='end'),
-        ])], style={}), id='main-panel-div')
+        ])])], id='main-panel-div')
 
 data_view_type_selection = html.Div(id='view-type-div', children=[dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
             dbc.RadioItems(
@@ -1042,7 +1082,7 @@ def top_select_panel():
                 min_date_allowed=date(2000, 8, 5),
                 max_date_allowed=date.today(),
                 # initial_visible_month=date(2017, 8, 5),
-                date = date(2021, 12, 31),
+                date = date(2021, 11, 30),
                 # date=(datetime.today() + pd.offsets.MonthEnd(0)),
                 # disabled_days=,
                 # display_format='YYYYMMDD',
@@ -1060,7 +1100,7 @@ def top_select_panel():
                 labelStyle={'display': 'inline-block'}),
             
             html.Br(),
-            html.Progress(id="progress_bar"),
+            html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
             html.Br(),
             data_view_type_selection,
             html.Hr(),
@@ -1144,7 +1184,9 @@ app.layout = dbc.Container([
 #     df = df.loc[~(df['fsym_id'] == fsym_id)]
 #     # df[df['fsym_id'] == fsym_id] = modified_df
 #     res = pd.concat([df, modified_df]).to_dict('records')
-#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res@app.callback(
+#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
+
+# @app.callback(
 #     # Output('data-table', 'data'),
 #     Output('modified-data-rows', 'data'),
 #     # Input('data-table', 'data_timestamp'),
@@ -1184,11 +1226,29 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
 
 
 #TODO
+@app.callback(
+        Output("save-msg", "children"),
+        Output("save-msg", "color"),
+        Input("upload-button", "n_clicks"),
+        State("new-data-data-table", "data")
+        )
+def export_modified_data(nclicks, modified_data): 
+    if nclicks == 0:
+        raise PreventUpdate
+    else:
+        df = pd.DataFrame(modified_data)
+        datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
+        df = df.astype(datatypes)
+        print(df.dtypes)
+        df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+        df.to_csv('edited_div_data')
+        return 'Data saved to DB', 'success'
+
 # @app.callback(
 #         Output("save-msg", "children"),
 #         Output("save-msg", "color"),
 #         Input("save-button", "n_clicks"),
-#         State("data-table", "data")
+#         State("new-data-data-table", "data")
 #         )
 # def export_modified_data(nclicks, modified_data): 
 #     if nclicks == 0:
@@ -1198,7 +1258,7 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
 #         datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
 #         df = df.astype(datatypes)
 #         print(df.dtypes)
-#           df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+#         df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
 #         df.to_csv('edited_div_data')
 #         return 'Data saved to DB', 'success'
 
