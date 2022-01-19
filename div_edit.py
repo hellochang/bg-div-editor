@@ -465,7 +465,7 @@ def load_data_to_dash(set_progress, update_date, index_flag):
     Output('new-data-data-table', 'columns'),
         # Output('all-goods-msg', 'is_open'),
     Output('fsym-id-dropdown', 'options'),
-    Output('fsym-id-dropdown', 'value'),
+    # Output('fsym-id-dropdown', 'value'),
     Output('no-data-msg', 'children'),
     Output('no-data-msg', 'is_open'),
     Output('main-panel', 'style'),
@@ -543,10 +543,12 @@ def load_selected_data(selected_review_option, datatable, data, rows, rows_prev,
     res = res + undo_delete_rows
     return res,\
         [{'name': i, 'id':i} for i in df.columns],\
-           fsym_id_dropdown_options, fsym_id_dropdown_options[0]['value'] if has_data else None,\
+           fsym_id_dropdown_options,\
            no_data_msg,\
            not has_data, display_option,\
            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+                          # fsym_id_dropdown_options[0]['value'] if has_data else None,\
+
 #     Output('new-data-data-table', 'data'),
 #     Input('output-data-table', 'data'),
 #     State('new-data-data-table', 'data'),
@@ -972,25 +974,63 @@ def core_functionalities():
 
 def fsym_id_selection():
     return html.Div([
-                dcc.Dropdown(id="fsym-id-dropdown"),
+                dbc.Row([dbc.Col(dbc.Button(id="prev-button", n_clicks=0, 
+                                    children='Previous', color='success'), 
+                        width=1),
+                         dbc.Col(dbc.Button(id="next-button", n_clicks=0, 
+                                    children='Next', color='success'), 
+                        width=1),
+                         dbc.Col(dbc.Button(id="modify-button", n_clicks=0, 
+                                    children='Modify Later', color='success'), 
+                        width=1), 
+                         dbc.Col(dcc.Dropdown(id="fsym-id-dropdown")),
+                         ], justify='start')
+                
+                ])           
+    
                     # options=[{}],
                     # value={}),
                 # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
-                html.Div([dash_table.DataTable(
-                    id='all-goods-data-table')])
-            ])
-       
+                # html.Div([dash_table.DataTable(
+                #     id='all-goods-data-table')])
+        
+@app.callback(
+        Output('modify-list', 'data'),
+        Input('modify-button', 'n_clicks'),
 
-mismatch_content = dbc.Card(
-    dbc.CardBody(
-        [
-            html.P("This is tab 2!", className="card-text"),
-            dbc.Button("Don't click here", color="danger"),
-        ]
-    ),
-    className="mt-3",
-)
+        State('fsym-id-dropdown', 'value'),
+        State('modify-list', 'data')
+        )
+def update_modify_list(n_clicks, cur_fsym_id, modify_list):
+    if n_clicks:
+        modify_list.update({'name': cur_fsym_id, 'id': cur_fsym_id})
+             
+@app.callback(
+        Output('fsym-id-dropdown', 'value'),
+        Input('next-button', 'n_clicks'),
+        State('fsym-id-dropdown', 'value'),
+        State('view-type-radio', 'value'),
+        State('mismatch-list', 'data')
+        )
+def go_to_next(n_clicks, cur_fsym_id, view_type, view_type_lst):
+    lst = [row[view_type] for row in view_type_lst]
+    lst.sort()
+    if not n_clicks:
+        return lst[0]
+    if n_clicks:
+        print('go_to_next')
+        print(view_type_lst)
+        # df = pd.DataFrame(view_type_lst)
+        # df = df[view_type]
 
+        print(lst)
+        # idx = list(df).index(cur_fsym_id)+1
+         
+        idx = lst.index(cur_fsym_id)+1
+        if idx >= len(lst): return cur_fsym_id
+        return lst[idx]
+         
+        
 skipped_content = dbc.Card(
     dbc.CardBody(
         [
@@ -1052,9 +1092,6 @@ main_panel = html.Div([
         core_functionalities(),
         
         
-        # dbc.Row(dbc.Col(dbc.Button(id="upload-skipped-button", n_clicks=0, 
-        #                            children='Upload skipped', color='success'), 
-        #                 width=2), justify='end'),
         html.Br(),#TODO
         dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
                                    children='Upload to DB', color='success'), 
@@ -1116,9 +1153,9 @@ def div_uploader():
 
 # App Layout
 app.layout = dbc.Container([
-    dcc.Store(id='all-goods-list'),
+    # dcc.Store(id='all-goods-list'),
     dcc.Store(id='mismatch-list'),
-    dcc.Store(id='skipped-list'),
+    dcc.Store(id='modify-list', data={}),
 
     top_select_panel(),
     # dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
