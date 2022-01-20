@@ -255,6 +255,42 @@ app.config.suppress_callback_exceptions = True
 # fsym_id = data['fsym_id'].unique()
 
 # print(data.dtypes)
+modify_data = pd.DataFrame([], columns=['fsym_id'])
+@app.callback(
+    Output("collapse-editor", "is_open"),
+    # Output('edit-data-table', 'data'),
+    Output('editor-fsym-id-dropdown', 'options'),
+    Output('editor-fsym-id-dropdown', 'value'),
+    Input("collapse-button", "n_clicks"),
+    Input('modify-list', 'data'),
+    State("collapse-editor", "is_open"),
+    State('new-data-data-table', 'data'),
+    running=[
+        (Output("collapse-button", "disabled"), True, False),
+    ],
+    manager=long_callback_manager,
+    )
+def get_editor_data(n, modify_lst, is_open, datatable):
+    df = pd.DataFrame(datatable)
+    print('get_editor_data')
+    print(datatable)
+    print(modify_lst)
+
+    lst = pd.DataFrame(modify_lst)
+    print(lst)
+    lst = lst['name']
+    global modify_data
+    modify_data = df[df['fsym_id'].isin(lst)]
+    fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id']]
+    # fsym_ids = [{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in modify_data['fsym_id']]
+    print('modify_data')
+    print(modify_data)
+    if n:
+        return not is_open, fsym_ids , fsym_ids[0]['value']
+    print(is_open)
+    # print(options)
+    return is_open, fsym_ids , fsym_ids[0]['value']
+
 def highlight_special_case_row():
     return [{
             'if': {
@@ -383,6 +419,9 @@ seclist = []#TODO combine with the other Card component later
     Input('index-only-radio', 'value'),
     running=[
         (Output("div-date-picker", "disabled"), True, False),
+        # (Output("collapse-editor", "is_open"), True, False),
+        (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
+
         # (Output('index-only-radio', "options"), [{'disabled': True}, {'disabled': True}], [{'disabled': False}, {'disabled': False}]),
         # (Output("index-only-radio", "style"), {'display': 'none'}, {}),
         (Output("main-panel-div", "style"), {'display': 'none'}, {}),
@@ -472,14 +511,14 @@ def load_data_to_dash(set_progress, update_date, index_flag):
     Output('modified-data-rows', 'columns'),
     Input('view-type-radio', 'value'),
     Input('data-table', 'data'),
-    Input('mismatch-list', 'data'),
-    Input('modified-data-rows', 'data'),
-    State('modified-data-rows', 'data_previous'),
-    State('fsym-id-data-table', 'data'))
+    Input('mismatch-list', 'data'))
+    # Input('modified-data-rows', 'data'),
+    # State('modified-data-rows', 'data_previous'),
+    # State('fsym-id-data-table', 'data'))
 # @functools.lru_cache(maxsize=32)
-def load_selected_data(selected_review_option, datatable, data, rows, rows_prev, modified_datatable):
+def load_selected_data(selected_review_option, datatable, view_type_lst):
     df = pd.DataFrame(datatable)
-    df_selection = pd.DataFrame(data)
+    df_selection = pd.DataFrame(view_type_lst)
     print('load_selected_data')
     print(df_selection)
     all_goods = df_selection['all_goods'].unique()
@@ -522,26 +561,27 @@ def load_selected_data(selected_review_option, datatable, data, rows, rows_prev,
     no_data_msg = f'There is no entry to be reviewed for {selected_review_option}' if not has_data else 'Data loaded'
     display_option = {'display': 'none'} if not has_data else {}
     
-    modified_df = pd.DataFrame(modified_datatable) 
-    print('modified_df')
-    print(modified_df)
-    if modified_df.shape[0] > 0: 
-        fsym_id = modified_df['fsym_id'].unique()[0]
-        df = df.loc[~(df['fsym_id'] == fsym_id)]
-        # df[df['fsym_id'] == fsym_id] = modified_df
-        res = pd.concat([df, modified_df])
-        print('res')
-        print(res)
-        res = res.to_dict('records')
-    else:
-        print('res for empty case')
-        print(df)
-        res = df.to_dict('records')
-    # print('fsym_id_dropdown_options')
-    # print(fsym_id_dropdown_options)
-    undo_delete_rows = [row for row in rows_prev if row not in rows] if rows is not None and rows_prev is not None else []
-    res = res + undo_delete_rows
-    return res,\
+    # modified_df = pd.DataFrame(modified_datatable) 
+    # print('modified_df')
+    # print(modified_df)
+    # if modified_df.shape[0] > 0: 
+    #     fsym_id = modified_df['fsym_id'].unique()[0]
+    #     df = df.loc[~(df['fsym_id'] == fsym_id)]
+    #     # df[df['fsym_id'] == fsym_id] = modified_df
+    #     res = pd.concat([df, modified_df])
+    #     print('res')
+    #     print(res)
+    #     res = res.to_dict('records')
+    # else:
+    #     print('res for empty case')
+    #     print(df)
+    #     res = df.to_dict('records')
+    # # print('fsym_id_dropdown_options')
+    # # print(fsym_id_dropdown_options)
+    # undo_delete_rows = [row for row in rows_prev if row not in rows] if rows is not None and rows_prev is not None else []
+    # res = res + undo_delete_rows
+    
+    return df.to_dict('records'),\
         [{'name': i, 'id':i} for i in df.columns],\
            fsym_id_dropdown_options,\
            no_data_msg,\
@@ -565,6 +605,7 @@ def load_selected_data(selected_review_option, datatable, data, rows, rows_prev,
 
 @app.callback(
     Output('fsym-id-data-table', 'data'),
+    Output('fsym-id-data-table', 'columns'),
     Input('fsym-id-dropdown', 'value'),
     # State('modified-data-rows', 'data'),
     # State('modified-data-rows', 'data_previous'),
@@ -575,7 +616,7 @@ def filter_fysm_id_data(selected, datatable):
     # print("filter_fysm_id_and_undo_delete: datatbl")
     # print(df)
     res = df[df['fsym_id'] == selected]
-    return res.to_dict('records')
+    return res.to_dict('records'), [{'name': i, 'id':i} for i in res.columns]
 
 @app.callback(
     Output('basic-info', 'children'),
@@ -797,9 +838,18 @@ row_3 = dbc.Row(
 )
 
 comparison_panel = html.Div([row_2, dbc.Row(dbc.Col(html.Br())), row_3])
-
+print(modify_data)
 def div_editor():
-    return dbc.Card(
+    return html.Div([
+    html.Div(dbc.Button(
+        "Edit entries",
+        id="collapse-button",
+        className="mb-3",
+        color="primary",
+        n_clicks=0,
+    ), id='collapse-button-div'),
+    
+    dbc.Collapse(dbc.Card(
         dbc.CardBody([
         
         # html.Br(),
@@ -815,13 +865,30 @@ def div_editor():
         #         ), width=10), justify='center'),
         
         # Hidden datatable for storing data
+        
+        
+        # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
+        dbc.Row(dbc.Col(dcc.Dropdown(
+                    id="editor-fsym-id-dropdown",
+                    # options=[{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in modify_data['fsym_id']],
+                )), justify='center'),
+        
+        # Hidden datatable for storing data
+        html.Div([dash_table.DataTable(
+            id='edit-data-table',
+            columns=[{'name': i, 'id':i} for i in modify_data.columns],
+            editable=True,
+            data=modify_data.to_dict('records')
+        )], style= {'display': 'none'}),
+        
+
 
     
     
         # dbc.Row(html.Br()),
         
         dbc.Row(dbc.Col(dash_table.DataTable(
-            id='fsym-id-data-table',
+            id='output-data-table',
             columns=[{'name': 'fsym_id', 'id': 'fsym_id', 'type': 'text', 'editable': False}] +
             [{'name': i, 'id':i, 'presentation': 'dropdown', 'editable': True} for i in ['listing_currency', 'payment_currency']] + 
             [{'name': i, 'id': i, 'type': 'datetime', 'editable': True} for i in ['declared_date', 'exdate', 'record_date', 'payment_date']] +
@@ -939,7 +1006,11 @@ def div_editor():
         # dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
         
         ]),             
-        className="w-85")
+        className="w-85"),
+        id="collapse-editor",
+        is_open=False,
+    )
+])
 
 def core_functionalities():
         return dbc.Card(
@@ -958,7 +1029,8 @@ def core_functionalities():
                         # columns=[{}],
                         # data={}
                 )]),
-
+                html.Br(),
+                dbc.Row(dbc.Col(dash_table.DataTable(id='fsym-id-data-table'))),
                 # html.Div([dash_table.DataTable(
                 #     id='fsym-id-data-table',
                 #     # columns=[{}],
@@ -974,14 +1046,16 @@ def core_functionalities():
 
 def fsym_id_selection():
     return html.Div([
+                dbc.Row(dbc.Alert(id="add-to-editor-msg", children='Saved for modifying later', color="success", duration=500, is_open=False)),
+                dbc.Row(dbc.Alert(id='warning-end-dropdown', color="warning", duration=700, is_open=False)),
                 dbc.Row([dbc.Col(dbc.Button(id="prev-button", n_clicks=0, 
-                                    children='Previous', color='success'), 
+                                    children='Previous'), 
                         width=1),
                          dbc.Col(dbc.Button(id="next-button", n_clicks=0, 
-                                    children='Next', color='success'), 
+                                    children='Next'), 
                         width=1),
                          dbc.Col(dbc.Button(id="modify-button", n_clicks=0, 
-                                    children='Modify Later', color='success'), 
+                                    children='Modify Later', color='warning'), 
                         width=1), 
                          dbc.Col(dcc.Dropdown(id="fsym-id-dropdown")),
                          ], justify='start')
@@ -996,67 +1070,51 @@ def fsym_id_selection():
         
 @app.callback(
         Output('modify-list', 'data'),
+        Output('add-to-editor-msg', 'is_open'),
         Input('modify-button', 'n_clicks'),
-
         State('fsym-id-dropdown', 'value'),
         State('modify-list', 'data')
         )
 def update_modify_list(n_clicks, cur_fsym_id, modify_list):
+    # if not n_clicks: return []
     if n_clicks:
-        modify_list.update({'name': cur_fsym_id, 'id': cur_fsym_id})
+        modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
+        print('update_modify_list')
+        print(modify_list)
+        return modify_list, True
              
 @app.callback(
         Output('fsym-id-dropdown', 'value'),
+        Output('warning-end-dropdown', 'children'),
+        Output('warning-end-dropdown', 'is_open'),
         Input('next-button', 'n_clicks'),
-        State('fsym-id-dropdown', 'value'),
+        Input('prev-button', 'n_clicks'),
+        Input('fsym-id-dropdown', 'value'),
         State('view-type-radio', 'value'),
         State('mismatch-list', 'data')
         )
-def go_to_next(n_clicks, cur_fsym_id, view_type, view_type_lst):
+def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     lst = [row[view_type] for row in view_type_lst]
     lst.sort()
-    if not n_clicks:
+    if not prev_clicks and not next_clicks:
         return lst[0]
-    if n_clicks:
-        print('go_to_next')
-        print(view_type_lst)
+    if prev_clicks or next_clicks:
+        print('changed_id')
+        print(changed_id)
         # df = pd.DataFrame(view_type_lst)
         # df = df[view_type]
 
         print(lst)
         # idx = list(df).index(cur_fsym_id)+1
          
-        idx = lst.index(cur_fsym_id)+1
-        if idx >= len(lst): return cur_fsym_id
-        return lst[idx]
-         
-        
-skipped_content = dbc.Card(
-    dbc.CardBody(
-        [
-            html.P("This is tab 2!", className="card-text"),
-            dbc.Button("Don't click here", color="danger"),
-            
-                html.Details([
-                html.Summary('Show Mismatch'),
-                dcc.Dropdown(
-                    id="mismatch-dropdown"),
-                html.Div([dash_table.DataTable(
-                    id='mismatch-data-table',
-                )]),
-                ]),
-                
-            html.Div(id='skipped-data-table-div',
-             children = [
-                html.Summary('Showed Skipped'),
-                html.Div([dash_table.DataTable(
-                    id='skipped-data-table',
-                )])
-            ]),
-        ]
-    ),
-    className="mt-3",
-)
+        idx = lst.index(cur_fsym_id)-1 if 'prev-button.n_clicks' == changed_id else lst.index(cur_fsym_id)+1
+        beg_end_msg = 'first' if idx < 0 else 'last'
+        if idx >= len(lst) or idx < 0:
+            end_dropdown_msg = f'This is the {beg_end_msg} Fsym Id.'
+            return dash.no_update, end_dropdown_msg, True
+        return lst[idx], '', False
+
 
 main_panel = html.Div([
     dbc.Alert(id="no-data-msg", color="info", is_open=False),
@@ -1155,7 +1213,7 @@ def div_uploader():
 app.layout = dbc.Container([
     # dcc.Store(id='all-goods-list'),
     dcc.Store(id='mismatch-list'),
-    dcc.Store(id='modify-list', data={}),
+    dcc.Store(id='modify-list', data=[]),
 
     top_select_panel(),
     # dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
@@ -1166,63 +1224,6 @@ app.layout = dbc.Container([
     html.Br(), div_editor()
     ], fluid=True)
 
-# @app.callback(Output("is-loading-msg", "children"), Input("main-panel", "value"))
-# def loading_data_spinner(value):
-#     return 'Data loaded'
-
-
-# @app.callback(
-#     Output('output-data-table', 'data'),
-#     Input('fsym-id-dropdown', 'value'),
-#     State('new-data-data-table', 'data'))
-# def filter_fysm_id(selected, datatable):
-#     if selected == 'All':
-#         return datatable
-#     df = pd.DataFrame(datatable)
-#     return df[df['fsym_id'] == selected].to_dict('records')
-# @app.callback(
-#     Output('output-data-table', 'data'),
-#     Input('fsym-id-dropdown', 'value'),
-#     State('modified-data-rows', 'data'),
-#     State('modified-data-rows', 'data_previous'),
-#     State('new-data-data-table', 'data'))
-# def filter_fysm_id_and_undo_delete(selected, rows, rows_prev, datatable):
-#     df = pd.DataFrame(datatable)
-#     res = df[df['fsym_id'] == selected].to_dict('records')
-#     return res
-    # return res + [row for row in rows_prev if row not in rows] if rows_prev is not None else res
-#TODO!!!!! also make sure the row was deleted instead of modified
-
-#TODO
-# @app.callback(
-#     Output('new-data-data-table', 'data'),
-#     Input('output-data-table', 'data'),
-#     State('new-data-data-table', 'data'),
-#     State('modified-data-rows', 'data'),
-#     State('modified-data-rows', 'data_previous'))
-# def update_data_table(modified_datatable, datatable, rows, rows_prev):
-#     df = pd.DataFrame(datatable)
-#     modified_df = pd.DataFrame(modified_datatable)  
-#     fsym_id = modified_df['fsym_id'].unique()[0]
-#     df = df.loc[~(df['fsym_id'] == fsym_id)]
-#     # df[df['fsym_id'] == fsym_id] = modified_df
-#     res = pd.concat([df, modified_df]).to_dict('records')
-#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
-
-# @app.callback(
-#     Output('new-data-data-table', 'data'),
-#     Input('fsym-id-data-table', 'data'),
-#     State('new-data-data-table', 'data'),
-#     State('modified-data-rows', 'data'),
-#     State('modified-data-rows', 'data_previous'))
-# def update_data_table(modified_datatable, datatable, rows, rows_prev):
-#     df = pd.DataFrame(datatable)
-#     modified_df = pd.DataFrame(modified_datatable)  
-#     fsym_id = modified_df['fsym_id'].unique()[0]
-#     df = df.loc[~(df['fsym_id'] == fsym_id)]
-#     # df[df['fsym_id'] == fsym_id] = modified_df
-#     res = pd.concat([df, modified_df]).to_dict('records')
-#     return res + [row for row in rows_prev if row not in rows] if rows is not None else res
 
 # @app.callback(
 #     # Output('data-table', 'data'),
@@ -1231,37 +1232,108 @@ app.layout = dbc.Container([
 #     Input('fsym-id-data-table', 'data_previous'),
 #     State('fsym-id-data-table', 'data'),
 #     State('modified-data-rows', 'data'))
+# def update_modified_data_table(rows_prev, rows, modified_rows):
+#     len_rows = len(rows) if rows is not None else 0
+#     len_rows_prev = len(rows_prev) if rows_prev is not None else 0
+#     if rows_prev is None: return []
+#     if len_rows == len_rows_prev:
+#         modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
+#         modified_rows[-1]['action'] = 'update'
+#         modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
+#         modified_rows[-1]['action'] = 'original'
+#     if len_rows < len_rows_prev:
+#          modified_rows = [i for i in rows_prev if i not in rows] if modified_rows is None else modified_rows + [i for i in rows_prev if i not in rows]
+#          modified_rows[-1]['action'] = 'delete'
+#     # if (len(rows) == len(rows_prev)):ss
+#     #     modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
+#     #     modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
+#     # if (len(rows) < len(rows_prev)):
+#     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
+#     idx = 0
+#     for row in modified_rows:
+#         row.update({'id': idx})
+#         idx = idx + 1
+#     return modified_rows
 
+
+ 
+
+@app.callback(
+    Output('output-data-table', 'data'),
+    Input('editor-fsym-id-dropdown', 'value'))
+    # State('edit-data-table', 'data'))
+def filter_fysm_id_editor(selected):
+    print('filter_fysm_id_editor')
+
+    # print(datatable)
+    
+    if selected == 'All':
+        return modify_data.to_dict('records')
+    # df = pd.DataFrame(datatable)
+    # print('filter_fysm_id_editor____________')
+    # print(modify_data)
+    return modify_data[modify_data['fsym_id'] == selected].to_dict('records')
+i = 0
+@app.callback(
+    Output('edit-data-table', 'data'),
+    # State('edit-data-table', 'data'),
+    Input('modified-data-rows', 'data'),
+    State('modified-data-rows', 'data_previous'),
+    State('editor-fsym-id-dropdown', 'value'),
+    State('output-data-table', 'data')
+)
+def update_changed_data_table(rows, rows_prev, fsym_id, modified_datatable):
+    global modify_data
+    # global i
+    # df = modify_data.copy()
+    modified_df = pd.DataFrame(modified_datatable) 
+    # print(f'update_changed_data_table: ____________{i}')
+    # print('modified_df: ')
+    # print(modified_df)
+    # print('modify_data: ')
+    modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
+    # print(modify_data)
+    # df[df['fsym_id'] == fsym_id] = modified_df
+    modify_data = pd.concat([modify_data, modified_df])
+    # print('updated_row:')
+    # print(modify_data)
+    res = modify_data.to_dict('records')
+    undo_delete_row = [row for row in rows_prev if row not in rows] if (rows is not None and rows_prev is not None) and len(rows_prev) > len(rows) else []
+    # print('rows')
+    # print(pd.DataFrame(rows))
+    # print('rows_prev')
+    # print(pd.DataFrame(rows_prev))
+    # print('undo_delete_row:')
+    # print(pd.DataFrame(undo_delete_row))
+    # res  = res +  undo_delete_row if undo_delete_row is not None else res
+    # pd.DataFrame(undo_delete_row).drop(columns=['action'], inplace=True)
+    modify_data = pd.concat([modify_data, pd.DataFrame(undo_delete_row)])
+    # print('update_changed_data_table:')
+    # print(modify_data)
+    # i=i+1
+    return res
 @app.callback(
     # Output('data-table', 'data'),
     Output('modified-data-rows', 'data'),
     # Input('data-table', 'data_timestamp'),
-    Input('fsym-id-data-table', 'data_previous'),
-    State('fsym-id-data-table', 'data'),
+    Input('output-data-table', 'data_previous'),
+    State('output-data-table', 'data'),
     State('modified-data-rows', 'data'))
 def update_modified_data_table(rows_prev, rows, modified_rows):
-    len_rows = len(rows) if rows is not None else 0
-    len_rows_prev = len(rows_prev) if rows_prev is not None else 0
-    if rows_prev is None: return []
-    if len_rows == len_rows_prev:
+    if (len(rows) == len(rows_prev)):
         modified_rows = [i for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i for i in rows if i not in rows_prev]
         modified_rows[-1]['action'] = 'update'
         modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
         modified_rows[-1]['action'] = 'original'
-    if len_rows < len_rows_prev:
-         modified_rows = [i for i in rows_prev if i not in rows] if modified_rows is None else modified_rows + [i for i in rows_prev if i not in rows]
+    if (len(rows) < len(rows_prev)):
+         modified_rows = modified_rows + [i for i in rows_prev if i not in rows]
          modified_rows[-1]['action'] = 'delete'
     # if (len(rows) == len(rows_prev)):ss
     #     modified_rows = [i.update({'action': 'update'}) for i in rows if i not in rows_prev] if modified_rows is None else modified_rows + [i.update({'action': 'update'}) for i in rows if i not in rows_prev]
     #     modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
     # if (len(rows) < len(rows_prev)):
     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
-    idx = 0
-    for row in modified_rows:
-        row.update({'id': idx})
-        idx = idx + 1
     return modified_rows
-
 
 #TODO
 @app.callback(
