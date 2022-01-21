@@ -46,33 +46,7 @@ data_importer_dash = DataImporter(False)
 # =============================================================================
 # Div Modifier Helpers
 # =============================================================================
-def massage_div_df(df_):
-    df = df_.copy()
-    df['num_days_exdate'] = df.groupby('fsym_id')['exdate'].apply(lambda x:x.shift(1) - x).dt.days.fillna(0)
-    df['num_days_paydate'] = df.groupby('fsym_id')['payment_date'].apply(lambda x:x.shift(1)-x).dt.days.fillna(0)
-    int_cols = ['div_initiation', 'skipped', 'num_days_exdate', 'num_days_paydate']
-    df[int_cols] = df[int_cols].astype(int)
-    df[df.select_dtypes(include='datetime').columns] = \
-        df[df.select_dtypes(include='datetime').columns].apply(lambda x: x.dt.strftime('%Y-%m-%d'))
-    return df
 
-def get_raw_data(fsym_id):
-    seclist = str(tuple(fsym_id)) if len(fsym_id) > 1 else f"'{fsym_id[0]}'"
-    query = f"""select * from fstest.dbo.bg_div 
-                where fsym_id in {seclist}
-                order by fsym_id asc, exdate desc
-             """
-    df = data_importer_dash.load_data(query)
-    df = massage_div_df(df)
-    return df
-
-
-# seclist = ['CRHZ50-R','D4VRCD-R','DYZT1C-R','F86WNV-R','F9CCB4-R','FFKCF9-R','FWD88N-R',
-# 'FZX1RR-R','G96265-R','GW7J66-R','H59VN3-R','H7HFJJ-R','J0FV3X-R','JDDDQJ-R',
-# 'JJ8MHV-R','KFMHQN-R','KMQ9YZ-R','M75128-R','MH3J5L-R','NL5NGR-R','PHPQLF-R',
-# 'QBSNDL-R','S7YFVK-R','SNVTLF-R','V05ZYN-R','V3MNCR-R','W5C59W-R','WMSKQW-R',
-# 'WRTQ85-R','WYM8VT-R','WZNMF1-R','X0NPP6-R','X2DZC9-R','X44KDF-R']
-# data = get_raw_data(seclist)
 cur_list = ['USD','CAD','EUR','GBP','JPY']
 
 
@@ -138,13 +112,6 @@ def compare_new_data_with_factset(secid, update_date, bbg, factset=None):
     new_data_comparison['check_payment_date'] = np.where(new_data_comparison['payment_date_factset']!=new_data_comparison['payment_date_bbg'], 'Mismatch', 'Good')
     return new_data_comparison
 
-
-            
-def print_new_data_comparison(x):
-    df = compare_new_data_with_factset(select.value)
-    with outs:
-        clear_output()
-        display(HTML(df.to_html()))
 #TODO changed func sig
 def prepare_bbg_data(new_data, alt_cur=''):
     # if regular_skipped == 'regular':
@@ -161,47 +128,6 @@ def prepare_bbg_data(new_data, alt_cur=''):
     else:
         new_data['payment_currency'] = last_cur
     return new_data
-
-def upload_new_data_to_database(x):
-    new = prepare_bbg_data(select.value, textbox.value)
-    upload_to_db(new)
-    with outs2:
-        clear_output()
-    with outs:
-        clear_output()
-        display('Uploaded')
-        textbox.value=''
-#         plot_dividend_data(select.value)
-
-def upload_to_database_CAD(x):
-    new = prepare_bbg_data(select.value,'CAD')
-    upload_to_db(new)
-    with outs2:
-        clear_output()
-    with outs:
-        clear_output()
-        display('Uploaded')
-        textbox.value=''
-        
-def upload_to_database_USD(x):
-    new = prepare_bbg_data(select.value,'USD')
-    upload_to_db(new)
-    with outs2:
-        clear_output()
-    with outs:
-        clear_output()
-        display('Uploaded')
-        textbox.value=''
-        
-def upload_skipped_to_database(x):
-    new = prepare_bbg_data(select.value, textbox.value, 'skipped')
-    upload_to_db(new)
-    with outs2:
-        clear_output()
-    with outs:
-        clear_output()
-        display('Uploaded')
-        textbox.value=''
 
 
 def plot_generic_dividend_data(df):
@@ -272,19 +198,19 @@ modify_data = pd.DataFrame([], columns=['fsym_id'])
     )
 def get_editor_data(n, modify_lst, is_open, datatable):
     df = pd.DataFrame(datatable)
-    print('get_editor_data')
-    print(datatable)
-    print(modify_lst)
+    # print('get_editor_data')
+    # print(datatable)
+    # print(modify_lst)
 
     lst = pd.DataFrame(modify_lst)
-    print(lst)
+    # print(lst)
     lst = lst['name']
-    global modify_data
+    global modify_data #TODO Use dictionary for loops instead
     modify_data = df[df['fsym_id'].isin(lst)]
     fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id']]
     # fsym_ids = [{"label": 'All', "value": 'All'}] + [{"label": i, "value": i} for i in modify_data['fsym_id']]
-    print('modify_data')
-    print(modify_data)
+    # print('modify_data')
+    # print(modify_data)
     if n:
         return not is_open, fsym_ids , fsym_ids[0]['value']
     print(is_open)
@@ -343,9 +269,6 @@ def find_changed_cell(df):
     # print(rows_orig)
     # print(rows_update)
     for idx, row in df.iterrows():
-        # prev_row = row
-        # print(row_o)
-        # print(row_u)
         if row['action'] == 'update':
             # print(f'cycle {idx}::')
             next_row = df.loc[idx+1]
@@ -540,6 +463,8 @@ def load_selected_data(selected_review_option, datatable, view_type_lst):
         selected_ids = selected_ids[:-1] 
     has_data = selected_ids.size > 0
     fsym_id_dropdown_options = [{"label": i, "value": i} for i in selected_ids] if has_data else []
+    print('load_selected_data')
+    print(df)
     df = df[df['fsym_id'].isin(selected_ids)] if has_data else pd.DataFrame([])
 
     # print(fsym_id_dropdown_options)
@@ -956,14 +881,7 @@ def div_editor():
                 }
             },
             row_deletable=True,
-            
-            # tooltip_data=[
-            #     {
-            #         column: {'value': str(value), 'type': 'markdown'}
-            #         for column, value in row.items()
-            #     } for row in data.to_dict('records')
-            # ],
-            # tooltip_duration=None,
+        
             # Workaround for bug regarding display row dropdown with Boostrap
             css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}]
         )), justify='center'),
@@ -1001,10 +919,13 @@ def div_editor():
             # tooltip_duration=None
         )), justify='center'),
         
-        # dbc.Row(html.H5('Save changes'), justify='start'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="save-msg", children="Press this button to save changes", color="info"), width=10), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Button(id="save-button", n_clicks=0, children='Save', color='success'), width=2), justify='end'),
-        
+        html.Br(),
+        dbc.Row(dbc.Col(dbc.Button(id="upload-modified-button", n_clicks=0, 
+                                   children='Upload modified to DB', color='success'), 
+                        width=2), justify='end'),
+        html.Br(),
+        dbc.Row(dbc.Col(dbc.Alert(id="save-modified-msg", color="info", is_open=False, duration=600), width=10), justify='end'),
+ 
         ]),             
         className="w-85"),
         id="collapse-editor",
@@ -1049,24 +970,19 @@ def fsym_id_selection():
                 dbc.Row(dbc.Alert(id="add-to-editor-msg", children='Saved for modifying later', color="success", duration=500, is_open=False)),
                 dbc.Row(dbc.Alert(id='warning-end-dropdown', color="warning", duration=700, is_open=False)),
                 dbc.Row([dbc.Col(dbc.Button(id="prev-button", n_clicks=0, 
-                                    children='Previous'), 
+                                    children='Prev'), 
                         width=1),
                          dbc.Col(dbc.Button(id="next-button", n_clicks=0, 
                                     children='Next'), 
                         width=1),
+                         dbc.Col(dcc.Dropdown(id="fsym-id-dropdown")),
                          dbc.Col(dbc.Button(id="modify-button", n_clicks=0, 
                                     children='Modify Later', color='warning'), 
                         width=1), 
-                         dbc.Col(dcc.Dropdown(id="fsym-id-dropdown")),
                          ], justify='start')
                 
                 ])           
     
-                    # options=[{}],
-                    # value={}),
-                # dbc.Row(dbc.Col(dbc.Alert(id="new-data-msg", color="info", is_open=False), width=10), justify='center'),
-                # html.Div([dash_table.DataTable(
-                #     id='all-goods-data-table')])
         
 @app.callback(
         Output('modify-list', 'data'),
@@ -1076,11 +992,10 @@ def fsym_id_selection():
         State('modify-list', 'data')
         )
 def update_modify_list(n_clicks, cur_fsym_id, modify_list):
-    # if not n_clicks: return []
     if n_clicks:
         modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
-        print('update_modify_list')
-        print(modify_list)
+        # print('update_modify_list')
+        # print(modify_list)
         return modify_list, True
              
 @app.callback(
@@ -1094,20 +1009,14 @@ def update_modify_list(n_clicks, cur_fsym_id, modify_list):
         State('mismatch-list', 'data')
         )
 def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
-    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]    
     lst = [row[view_type] for row in view_type_lst]
+    if lst[-1] is None:
+        lst = lst[:-1] ,'', False
     lst.sort()
     if not prev_clicks and not next_clicks:
         return lst[0]
     if prev_clicks or next_clicks:
-        print('changed_id')
-        print(changed_id)
-        # df = pd.DataFrame(view_type_lst)
-        # df = df[view_type]
-
-        print(lst)
-        # idx = list(df).index(cur_fsym_id)+1
-         
         idx = lst.index(cur_fsym_id)-1 if 'prev-button.n_clicks' == changed_id else lst.index(cur_fsym_id)+1
         beg_end_msg = 'first' if idx < 0 else 'last'
         if idx >= len(lst) or idx < 0:
@@ -1118,33 +1027,25 @@ def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_
 
 main_panel = html.Div([
     dbc.Alert(id="no-data-msg", color="info", is_open=False),
+    
     dbc.Card(
     id = 'main-panel',
     children = [dbc.CardBody([
-
-        dbc.Row(),
-        dbc.Row(),
             
-
+        # Hidden datatable for storing data
         html.Div([dash_table.DataTable(
             id='data-table',
-            # columns=[{'name': i, 'id':i} for i in data.columns],
             editable=True,
-            # data=data.to_dict('records')
         )], style= {'display': 'none'}),
-        # Hidden datatable for storing data
+        
+
         html.Div([dash_table.DataTable(
             id='new-data-data-table',
             # columns=[{'name': i, 'id':i} for i in data.columns],
             # data=data.to_dict('records')
         )], style= {'display': 'none'}),
 
-            
-        # html.H2('Show All Goods'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="no-data-msg", color="info", is_open=False), width=10), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="mismatch-msg", color="info", is_open=False), width=10), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Alert(id="skipped-msg", color="info", is_open=False), width=10), justify='center'),
-
+        
         fsym_id_selection(),
         # dcc.Loading(id="is-loading-data", children=[fsym_id_selection()], type="default"),
         core_functionalities(),
@@ -1152,8 +1053,9 @@ main_panel = html.Div([
         
         html.Br(),#TODO
         dbc.Row(dbc.Col(dbc.Button(id="upload-button", n_clicks=0, 
-                                   children='Upload to DB', color='success'), 
+                                   children='Upload original to DB', color='success'), 
                         width=2), justify='end'),
+        dbc.Row(dbc.Col(dbc.Alert(id="save-msg", color="info", is_open=False, duration=600), width=10), justify='end'),               
         ])])], id='main-panel-div')
 
 data_view_type_selection = html.Div(id='view-type-div', children=[dbc.Row(dbc.Col(dbc.Label('Select the type of data'), width=10)),
@@ -1194,9 +1096,8 @@ def top_select_panel():
                 ],
                 value=False,
                 labelStyle={'display': 'inline-block'}),
-            
-            html.Br(),
             html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
+            html.Hr(),
             html.Br(),
             data_view_type_selection,
             html.Hr(),
@@ -1216,12 +1117,14 @@ app.layout = dbc.Container([
     dcc.Store(id='modify-list', data=[]),
 
     top_select_panel(),
+    html.Br(), 
     # dcc.Loading(id="is-loading-top-panel", children=[top_select_panel()], type="default"),
     # dcc.Loading(id="is-loading-data", children=[dbc.Alert(id="is-loading-msg")], type="default"),
     # dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()], type="default"),
     div_uploader(),
     # div_uploader(),
-    html.Br(), div_editor()
+    html.Br(), 
+    div_editor()
     ], fluid=True)
 
 
@@ -1263,17 +1166,12 @@ app.layout = dbc.Container([
     Input('editor-fsym-id-dropdown', 'value'))
     # State('edit-data-table', 'data'))
 def filter_fysm_id_editor(selected):
-    print('filter_fysm_id_editor')
-
-    # print(datatable)
-    
+    # print('filter_fysm_id_editor____________')
     if selected == 'All':
         return modify_data.to_dict('records')
-    # df = pd.DataFrame(datatable)
-    # print('filter_fysm_id_editor____________')
     # print(modify_data)
     return modify_data[modify_data['fsym_id'] == selected].to_dict('records')
-i = 0
+
 @app.callback(
     Output('edit-data-table', 'data'),
     # State('edit-data-table', 'data'),
@@ -1312,6 +1210,8 @@ def update_changed_data_table(rows, rows_prev, fsym_id, modified_datatable):
     # print(modify_data)
     # i=i+1
     return res
+
+
 @app.callback(
     # Output('data-table', 'data'),
     Output('modified-data-rows', 'data'),
@@ -1333,48 +1233,57 @@ def update_modified_data_table(rows_prev, rows, modified_rows):
     #     modified_rows= modified_rows + [i.update({'action': 'original'}) for i in rows_prev if i not in rows]
     # if (len(rows) < len(rows_prev)):
     #      modified_rows = modified_rows + [i.update({'action': 'delete'}) for i in rows_prev if i not in rows] 
+    idx = 0
+    for row in modified_rows:
+        row.update({'id': idx})
+        idx = idx + 1
     return modified_rows
 
 #TODO
 @app.callback(
         Output("save-msg", "children"),
-        Output("save-msg", "color"),
+        Output("save-msg", "is_open"),
         Input("upload-button", "n_clicks"),
+        Input('modify-list', 'data'),
         State("new-data-data-table", "data")
         )
-def export_modified_data(nclicks, modified_data): 
+def export_not_modified_data(nclicks, modify_lst, modified_data): 
     if nclicks == 0:
         raise PreventUpdate
     else:
         df = pd.DataFrame(modified_data)
+        lst = pd.DataFrame(modify_lst)
+        lst = lst['name'] #TODO Use dictionary for loops instead
+        print(df)
+        df = df[~(df['fsym_id'].isin(lst))]
         datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
         df = df.astype(datatypes)
-        print(df.dtypes)
+        # print(df.dtypes)
+        df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+        df.to_csv('not_edited_data')
+        return 'Data saved to DB', True
+
+@app.callback(
+        Output("save-modified-msg", "children"),
+        Output("save-modified-msg", "is_open"),
+        Input("upload-modified-button", "n_clicks"),
+        )
+def export_modified_data(nclicks): 
+    if nclicks == 0:
+        raise PreventUpdate
+    else:
+        df = modify_data.copy()
+        datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
+        df = df.astype(datatypes)
+        print(df)
+        # print(df.dtypes)
         df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
         df.to_csv('edited_div_data')
-        return 'Data saved to DB', 'success'
-
-# @app.callback(
-#         Output("save-msg", "children"),
-#         Output("save-msg", "color"),
-#         Input("save-button", "n_clicks"),
-#         State("new-data-data-table", "data")
-#         )
-# def export_modified_data(nclicks, modified_data): 
-#     if nclicks == 0:
-#         raise PreventUpdate
-#     else:
-#         df = pd.DataFrame(modified_data)
-#         datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
-#         df = df.astype(datatypes)
-#         print(df.dtypes)
-#         df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
-#         df.to_csv('edited_div_data')
-#         return 'Data saved to DB', 'success'
+        return 'Data saved to DB', True
 
 # Running the server
 if __name__ == "__main__":
-    # View the app at http://192.168.2.77:8080/ or
+    # View the app at http://192.168.2.77:8080/ or, in general,
     #   http://[host computer's IP address]:8080/
     # app.run_server(debug=False, host='0.0.0.0', port = 8080)
     app.run_server(debug=True, port=80, dev_tools_silence_routes_logging = False)
