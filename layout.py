@@ -5,15 +5,12 @@ Created on Fri Jan 21 13:41:16 2022
 @author: Chang.Liu
 """
 
-import pandas as pd
-
+from pandas import offsets
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
 from dash import dash_table
 from datetime import date, datetime
-
-
 
 # =============================================================================
 # Div Uploader
@@ -37,7 +34,6 @@ bbg_card = [
             # html.Div([dash_table.DataTable(
             #     id='bbg-data-table',
             # )]),
-    
         ]
     ),
 ]  
@@ -353,8 +349,6 @@ editor_collapsible_component = dbc.Collapse(dbc.Card(
         is_open=False,
     )
 
-
-
 def div_editor():
     return html.Div([
         edit_entry_button,
@@ -383,7 +377,7 @@ data_view_type_selection = html.Div(
 date_selection = dcc.DatePickerSingle(
     id='div-date-picker',
     min_date_allowed=date(2010, 8, 30),
-    max_date_allowed=(datetime.today() + pd.offsets.MonthEnd(0)),
+    max_date_allowed=(datetime.today() + offsets.MonthEnd(0)),
     date = date(2021, 11, 30),
     # date=(datetime.today() + pd.offsets.MonthEnd(0)),
     # disabled_days=,
@@ -428,6 +422,7 @@ app_layout = dbc.Container([
     html.Br(), 
 
     dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()]),
+    
     html.Br(), 
     div_editor()
     ], fluid=True)
