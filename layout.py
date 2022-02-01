@@ -66,7 +66,7 @@ split_card = [
     dbc.CardBody(
         [
             html.H5('Split History', className="card-title"),
-            html.Div([dash_table.DataTable(id='split-data-table',)])
+            html.Div([dash_table.DataTable(id='split-selected-data-table',)])
         ]
     ),
 ]
@@ -81,7 +81,10 @@ row_2 = dbc.Row(
 row_3 = dbc.Row(
     [
         dbc.Col(dbc.Card(split_card, id='split-card', color="dark", outline=True)),
-        # dbc.Col([dbc.Card(bg_card, id='bg-db-card', color="dark", outline=True),
+        dbc.Col(dbc.Alert(id="no-split-msg", color="info", is_open=False)),
+
+        dbc.Col(dbc.Card(bg_card, id='bg-db-card', color="dark", outline=True)),
+        dbc.Col(dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)),
     ]
 )
 
@@ -138,16 +141,18 @@ main_panel_upload_save_panel = html.Div([
     ])
 
 main_panel_hidden_storage = html.Div([
-        html.Div([dash_table.DataTable(
-            id='data-table',
-            editable=True,
-            )], style= {'display': 'none'}),
-        
-        html.Div([dash_table.DataTable(
-            id='new-data-data-table'
-            )], style= {'display': 'none'})    
-        ]
-    )
+    dcc.Store(id='data-table'),
+    dcc.Store(id='new-data-data-table'),   
+     
+    dcc.Store(id='split-db-data-table'),        
+    # dcc.Store(id='split-selected-data-table'),        
+  
+    dcc.Store(id='bg-div-data-table'),        
+    dcc.Store(id='div-selected-data-table'),
+    dcc.Store(id='basic-info-data-table'),
+    dcc.Store(id='factset-data-table')
+    
+    ])
         
 main_panel = html.Div([
     dbc.Alert(id="no-data-msg", color="info", is_open=False),
@@ -378,7 +383,7 @@ date_selection = dcc.DatePickerSingle(
     id='div-date-picker',
     min_date_allowed=date(2010, 8, 30),
     max_date_allowed=(datetime.today() + offsets.MonthEnd(0)),
-    date = date(2021, 11, 30),
+    date = date(2021, 12, 31),
     # date=(datetime.today() + pd.offsets.MonthEnd(0)),
     # disabled_days=,
     # display_format='YYYYMMDD',
