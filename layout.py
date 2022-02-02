@@ -62,7 +62,7 @@ bg_card = [
                     },
                     page_size=20)
                 ], id='bg-content'),
-            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False),
+            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)
         ]
     ),
 ]
@@ -416,8 +416,9 @@ top_select_panel = dbc.Card(
         html.Details([
             html.Summary('Customize path'),
             dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
-            html.Br(),
-            dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path')]),
+            dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
+            dbc.Alert(id="path-warning-msg", color="warning")#, duration=900
+            ]),
 
         html.Br(),
         dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),

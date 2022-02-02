@@ -189,6 +189,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # Output('split-db-data-table', 'columns'),
         Output('basic-info-data-table', 'data'),
         Output('factset-data-table', 'data'),
+        # Output('factset-data-table', 'valid'),
+        Output('path-warning-msg', 'children'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
         Input('div-data-path', 'value'),
@@ -212,12 +214,22 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         
         if not new_data_path:
             new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
-        else:
-            new_data = pd.read_parquet(new_data_path)
         if not update_list_path:
             update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
-        else:
-            new_data = pd.read_parquet(update_list_path)
+        import_warning_msg = ''
+        if new_data_path:
+            try:
+                new_data = pd.read_parquet(new_data_path)
+            except Exception as e:
+                import_warning_msg = f'Error for new dvd path: {e}. \nUsing default path'
+                new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
+        if update_list_path:
+            try:
+                update_list = pd.read_parquet(update_list_path)
+            except Exception as e:
+                import_warning_msg = import_warning_msg + f'Error for seclist path: {e}. \nUsing default path'
+                update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+                
             
         print('load_data_to_dash')
 
@@ -280,7 +292,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return new_data.to_dict('records'),\
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
-                split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records')
+                split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records'), import_warning_msg
                 
                 # [{'name': i, 'id':i} for i in split_data.columns]
     
