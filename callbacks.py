@@ -182,7 +182,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('data-table', 'data'),
         # Output('data-table', 'columns'),
         Output('view-type-list', 'data'),
-        Output('progress-div', 'style'),
+        # Output('progress-div', 'style'),
         Output('bg-div-data-table', 'data'),
         # Output('bg-div-data-table', 'columns'),
         Output('split-db-data-table', 'data'),
@@ -268,7 +268,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
            
         # print(dropdown_options)
         return new_data.to_dict('records'),\
-                view_type_ids.to_dict('records'), {'display': 'none'},\
+                view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
                 split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records')
                 
@@ -301,7 +301,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'\
             if not has_data else 'Data loaded'
         display_option = {'display': 'none'} if not has_data else {}
-        
+   
         return selected_data.to_dict('records'),\
             [{'name': i, 'id':i} for i in selected_data.columns],\
            fsym_id_dropdown_options,\
@@ -316,7 +316,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('split-selected-data-table', 'data'),
         Output('split-selected-data-table', 'columns'),
         # Output('no-', 'is_open'),        
-        Output('no-split-msg', 'is_open'),
+        Output('split-warning-msg', 'is_open'),
+        Output('split-warning-msg', 'children'),
+        Output('split-content', 'style'),
         Input('fsym-id-dropdown', 'value'),
         State('new-data-data-table', 'data'),
         State('bg-div-data-table', 'data'),
@@ -326,16 +328,21 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         df = pd.DataFrame(datatable)
         bg_div_df = pd.DataFrame(div_datatable)
         split_df = pd.DataFrame(split_datatable)
-        print('filter_fysm_id_data')
-        print(bg_div_df)
-        print(split_df)
+        # print('filter_fysm_id_data')
+        # print(bg_div_df)
+        # print(split_df)
         res = df[df['fsym_id'] == selected]
         
         div_selected = bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
-        split_selected = split_df[split_df['fsym_id']==selected] if split_df.shape[0] != 0 else split_df
+
+        if split_df.shape[0] != 0:
+            split_df = split_df[split_df['fsym_id']==selected]
+
         return res.to_dict('records'), [{'name': i, 'id':i} for i in res.columns],\
-            div_selected.to_dict('records'), split_selected.to_dict('records'),\
-            [{'name': i, 'id':i} for i in split_selected.columns], split_df.shape[0] == 0
+            div_selected.to_dict('records'), split_df.to_dict('records'),\
+            [{'name': i, 'id':i} for i in split_df.columns], split_df.shape[0] == 0,\
+            f'There is no split data for {selected}',\
+                {} if split_df.shape[0] != 0 else  {'display': 'none'}
             
     @app.callback(
         Output('basic-info', 'children'),
@@ -351,30 +358,35 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         )
     def get_basic_info(new_data, bg_div_data, update_date, 
                        basic_info_datatable, factset_datatable):
+        # print('get_basic_info')
         new_data = pd.DataFrame(new_data)
+        # print(new_data)
+
         fsym_id = new_data['fsym_id'].values[0]
         bg_div_df = pd.DataFrame(bg_div_data)
         info_df = pd.DataFrame(basic_info_datatable)
+        # print(info_df)
+
         info_df = info_df[info_df['fsym_id']==fsym_id]
         factset_df = pd.DataFrame(factset_datatable)
-        factset = factset_df[factset_df['fsym_id']==fsym_id]
-        print('get_basic_info')
+        # print(factset_df)
+        if factset_df.shape[0] != 0:
+            factset_df = factset_df[factset_df['fsym_id']==fsym_id]
         # print(new_data.dtypes)
         global check_exist
         check_exist = bg_div_df.shape[0] != 0
         basic_info_str = basic_info(fsym_id, info_df, new_data)
-        # print(bg_div_df)
         payment_exist_msg = ''
         if not check_exist:
             # last_exdate = None
             comparison_msg = "This is a newly added."
             comparison = compare_new_data_with_factset(fsym_id, update_date,
-                                                       new_data,  factset)
-            fig = plot_dividend_data_comparison(factset, new_data)
+                                                       new_data,  factset_df)
+            fig = plot_dividend_data_comparison(factset_df, new_data)
         else:
             # last_exdate = last_payment_exdate(fsym_id, bg_div_df['exdate'])
             (last_cur, fstest_cur) = dividend_currency(new_data)
-            comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset)
+            comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset_df)
             if fstest_cur != last_cur:
                 comparison_msg = f'Possible currency change. Last payment:{last_cur}. Factset payment:{fstest_cur}'
             new_data['listing_currency'] = fstest_cur
@@ -388,7 +400,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
     @app.callback(
         Output('factset-graph', 'figure'),
-        Output('factset-card', 'style'),
+        Output('facset-content', 'style'),
         Output('factset-warning-msg', 'is_open'),
         Output('factset-warning-msg', 'children'),
         Input('fsym-id-data-table', 'data'),
@@ -404,8 +416,17 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         #     warning_msg = f'Error while loading data from DB: {e}'
         #     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
         #     return fig, {'display': 'none'}, True, warning_msg
-        fig = plot_dividend_data_comparison(bg, bbg)
-        return fig, {}, False, ''   
+        if len(bg) == 0:
+            has_data = False
+            warning_msg = 'No need to compare since this holding is not in the bg_div table.' 
+            fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'})) 
+            display_option = {'display': 'none'}
+        else:
+            has_data = True
+            warning_msg = '' 
+            fig = plot_dividend_data_comparison(bg, bbg)
+            display_option = {}
+        return fig, display_option, not has_data, warning_msg   
     
     @app.callback(
         Output('bbg-graph', 'figure'),
@@ -420,39 +441,37 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('bg-db-graph', 'figure'),
         Output('bg-db-data-table', 'data'),
         Output('bg-db-data-table', 'columns'),
-        Output('bg-db-card', 'style'),
+        Output('bg-content', 'style'),
         Output('bg-db-warning-msg', 'is_open'),
         Output('bg-db-warning-msg', 'children'),
-        Input('fsym-id-dropdown', 'value'),
-        State('div-selected-data-table', 'data'))
-    def plot_db(fsym_id, div_selected_datatable):
+        Input('div-selected-data-table', 'data'))
+    def plot_db(div_selected_datatable):
         # query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
         # try:
             # df = data_importer_dash.load_data(query)
-        df = pd.DataFrame(div_selected_datatable)
         # print('plot_db')
-        # print(df)
-        ##TODO Add case for empty df here
+        # print(pd.DataFrame(div_selected_datatable))
 
         # except Exception as e:
         #     warning_msg = f'Error while loading data from DB: {e}'
         #     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
         #     return fig, {}, [], {'display': 'none'}, warning_msg
         
-        if df is None:
+        if len(div_selected_datatable) == 0:
             has_data = False
-            warning_msg = 'This holding is not in the DB.' 
+            warning_msg = 'This holding is not in the bg_div table.' 
             fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
             cols = []
-            df = {}
+            df = []
         else:
             has_data = True
             warning_msg = ''
+            df = pd.DataFrame(div_selected_datatable)
             df.sort_values(by=['exdate'], ascending=False, inplace=True)
             fig = plot_generic_dividend_data(df)
             cols = [{'name': i, 'id':i} for i in df.columns]
             df = df.to_dict('records')        
-        return fig, df, cols, {'display': 'none'} if not has_data else {}, has_data, warning_msg
+        return fig, df, cols, {'display': 'none'} if not has_data else {}, not has_data, warning_msg
     
     # @app.callback(
     #     Output('split-data-table', 'data'),

@@ -124,31 +124,39 @@ def plot_generic_dividend_data(df):
 
         
 def plot_dividend_data_comparison(bg, bbg):
+    # print('plot_dividend_data_comparison')
+    # print('bg')
+
+    # print(bg)
+    # print('bbg')
+    # print(bbg)
+
     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
-    bg['div_type'] = bg['div_type'].str.replace(' ', '')
-    bg_regular = bg[bg['div_type'] == 'regular']
-    bg_special = bg[bg['div_type'] == 'special']
-    
+
     bbg['div_type'] = bbg['div_type'].str.replace(' ', '')
     bbg_regular = bbg[bbg['div_type'] == 'regular']
     bbg_special = bbg[bbg['div_type'] == 'special']
     
+    bg['div_type'] = bg['div_type'].str.replace(' ', '')
+    bg_regular = bg[bg['div_type'] == 'regular']
+    bg_special = bg[bg['div_type'] == 'special']
+    
     fig.add_trace(go.Scatter(x=bg_regular['exdate'], 
-                             y=bg_regular['payment_amount'],
-                             mode='lines+markers', name='BG Regular',
-                             line=dict(color='orchid')))
-    fig.add_trace(go.Scatter(x=bbg_regular['exdate'], 
-                             y=bbg_regular['payment_amount'],
-                             mode='lines+markers', name='BBG Regular',
-                             line=dict(color='blue')))
+                         y=bg_regular['payment_amount'],
+                         mode='lines+markers', name='BG Regular',
+                         line=dict(color='orchid')))
     fig.add_trace(go.Scatter(x=bg_special['exdate'], 
                              y=bg_special['payment_amount'], 
                              mode='markers',name='BG Special', 
                              line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=bbg_regular['exdate'], 
+                             y=bbg_regular['payment_amount'],
+                             mode='lines+markers', name='BBG Regular',
+                             line=dict(color='blue')))
     fig.add_trace(go.Scatter(x=bbg_special['exdate'], 
-                             y=bbg_special['payment_amount'],
-                             mode='markers',name='BBG Special',
-                             line=dict(color='black')))
+                         y=bbg_special['payment_amount'],
+                         mode='markers',name='BBG Special',
+                         line=dict(color='black')))
     return fig
     
 #%% Functions
@@ -258,7 +266,7 @@ def load_factset_data(fysm_id_lst):
 			  ON bd.fsym_id  = div.fsym_id
 
 			  where bd.fsym_id IN {}
-			  AND p_divs_exdate >  exdate """.\
+			  AND p_divs_exdate >  exdate""".\
                   format(str(tuple(fysm_id_lst)), str(tuple(fysm_id_lst)))
         
     # print(query)
@@ -284,26 +292,14 @@ def load_basic_info_data(fysm_id_lst):
     # print(df)
     return df
 
-def load_basic_div_data(fysm_id_lst):
-    if fysm_id_lst is None or fysm_id_lst == []:
-        return
-    # print(fysm_id_lst)
-    # print(tuple(fysm_id_lst))
-    # print(str(tuple(fysm_id_lst)))
-    query = "SELECT fsym_id, exdate,div_freq, div_initiation,payment_amount, div_type from fstest.dbo.bg_div where fsym_id IN %s" %\
-        str(tuple(fysm_id_lst))
-    # print(query)
-    df = data_importer_uploader.load_data(query)
-    # print(df)
-    return df
-
 def load_bg_div_data(fysm_id_lst):
     if fysm_id_lst is None or fysm_id_lst == []:
         return
     # print(fysm_id_lst)
     # print(tuple(fysm_id_lst))
     # print(str(tuple(fysm_id_lst)))
-    query = "SELECT fsym_id, exdate,div_freq, div_initiation,payment_amount, div_type from fstest.dbo.bg_div where fsym_id IN %s" %\
+    query = """SELECT fsym_id, exdate,div_freq, div_initiation,payment_amount, div_type 
+                from fstest.dbo.bg_div where fsym_id IN %s""" %\
         str(tuple(fysm_id_lst))
     # print(query)
     df = data_importer_uploader.load_data(query)
@@ -325,7 +321,9 @@ def load_split_data(fysm_id_lst):
     if fysm_id_lst is None or fysm_id_lst == []:
         return
 
-    query = "select fsym_id,p_split_date,p_split_factor, exp(sum(log(p_split_factor))  OVER (ORDER BY p_split_date desc)) cum_split_factor from fstest.fp_v2.fp_basic_splits where fsym_id IN %s order by p_split_date" %\
+    query = """select fsym_id,p_split_date,p_split_factor, exp(sum(log(p_split_factor))
+                OVER (ORDER BY p_split_date desc)) cum_split_factor from fstest.fp_v2.fp_basic_splits
+                where fsym_id IN %s order by p_split_date""" %\
         str(tuple(fysm_id_lst))
     df = data_importer_uploader.load_data(query)
     print('load_split_data')
