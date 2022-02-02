@@ -410,8 +410,15 @@ top_select_panel = dbc.Card(
         dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
         html.Br(),
         date_selection,
-
         html.Br(),
+        html.Br(),
+        
+        html.Details([
+            html.Summary('Customize path'),
+            dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
+            html.Br(),
+            dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path')]),
+
         html.Br(),
         dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
         index_only_selection,

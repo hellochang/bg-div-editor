@@ -191,6 +191,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('factset-data-table', 'data'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
+        Input('div-data-path', 'value'),
+        Input('seclist-path', 'value'),
         # running=[
         #     (Output("div-date-picker", "disabled"), True, False),
         #     (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
@@ -201,14 +203,22 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
     )
     # @functools.lru_cache(maxsize=5)
-    def load_data_to_dash(update_date, index_flag):
+    def load_data_to_dash(update_date, index_flag, new_data_path=None, update_list_path=None):
         # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
         # if update_date == "":
         #     update_date = monthend_date
         print(f'update_date:{update_date}')
         f_date = update_date.replace('-','')
-        new_data=pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
-        update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+        
+        if not new_data_path:
+            new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
+        else:
+            new_data = pd.read_parquet(new_data_path)
+        if not update_list_path:
+            update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+        else:
+            new_data = pd.read_parquet(update_list_path)
+            
         print('load_data_to_dash')
 
         # i=0
