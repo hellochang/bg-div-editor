@@ -415,9 +415,16 @@ top_select_panel = dbc.Card(
         
         html.Details([
             html.Summary('Customize path'),
-            dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
-            dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
-            dbc.Alert(id="path-warning-msg", color="warning")#, duration=900
+            html.Div([
+                dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
+                dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
+                dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
+                dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
+            
+                html.Br(),
+                dbc.Button(id="submit-path-button", n_clicks=0, 
+                           children='Submit path', color='success')
+                ]), 
             ]),
 
         html.Br(),
