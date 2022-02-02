@@ -166,11 +166,61 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                         lst_idx = lst_idx + [idx, idx+1]
                         lst_changed_cell = lst_changed_cell + [col, col]
         return lst_idx, lst_changed_cell   
+  
+    
+  
+    
+    @app.callback(
+      Output('path-warning-msg1', 'children'),
+      Output('path-warning-msg2', 'children'),
+      Output('div-data-path', 'valid'),
+      Output('seclist-path', 'valid'),
+      Output('path-warning-msg1', 'is_open'),
+      Output('path-warning-msg2', 'is_open'),
+      Input('div-data-path', 'value'),
+      Input('seclist-path', 'value'),
+      )
+    def check_path_validity(new_data_path=None, update_list_path=None):
+        import_warning_msg_1 = ''
+        import_warning_msg_2 = ''       
+        
+        div_path_valid = False
+        seclist_path_valid = False
+        if new_data_path:
+            try:
+                new_data = pd.read_parquet(new_data_path)
+                div_path_valid = True
+            except Exception as e:
+                import_warning_msg_1 = f'Error for new dvd path: {e}. \nUsing default path.'
+        if update_list_path:
+            try:
+                update_list = pd.read_csv(update_list_path)
+                seclist_path_valid = True
+            except Exception as e:
+                import_warning_msg_2 = f'Error for seclist path: {e}. \nUsing default path.'
+                
+        return import_warning_msg_1, import_warning_msg_2,\
+            div_path_valid, seclist_path_valid,\
+                not div_path_valid and new_data_path, not seclist_path_valid and update_list_path
+                
+    # @app.callback(
+    #   Output('path-warning-msg', 'children'),
+    #   Output('path-warning-msg', 'valid'),
+    #   Input('div-data-path', 'value'),
+    #   Input('seclist-path', 'value'),
+    #   )
+    # def submit_path(new_data_path=None, update_list_path=None): 
+    #     if nclicks == 0:
+    #         raise PreventUpdate
+        
+            
+        
     
     # fsc = FileSystemCache("cache_dir")
     # fsc.set("progress", None)
         
-        
+       
+
     # @app.callback(Output("progress", "children"), Trigger("interval", "n_intervals"))
     # def update_progress():
     #     value = fsc.get("progress")  # get progress
@@ -189,8 +239,14 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # Output('split-db-data-table', 'columns'),
         Output('basic-info-data-table', 'data'),
         Output('factset-data-table', 'data'),
+        # Output('factset-data-table', 'valid'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
+        Input('submit-path-button', 'n_clicks'),
+        State('div-data-path', 'value'),
+        State('seclist-path', 'value'),
+        State('div-data-path', 'valid'),
+        State('seclist-path', 'valid'),
         # running=[
         #     (Output("div-date-picker", "disabled"), True, False),
         #     (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
@@ -201,14 +257,26 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
     )
     # @functools.lru_cache(maxsize=5)
-    def load_data_to_dash(update_date, index_flag):
+    def load_data_to_dash(update_date, index_flag, path_btn_clicks,
+                          new_data_path, update_list_path,
+                          div_path_valid, seclist_path_valid
+                          ):
         # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
         # if update_date == "":
         #     update_date = monthend_date
         print(f'update_date:{update_date}')
         f_date = update_date.replace('-','')
-        new_data=pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
+        
+        new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
         update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+        if path_btn_clicks  > 0: 
+            if not div_path_valid and not seclist_path_valid:
+                return dash.no_update
+            if div_path_valid:
+                new_data = pd.read_parquet(new_data_path)
+            if seclist_path_valid:
+                update_list = pd.read_csv(update_list_path)
+                
         print('load_data_to_dash')
 
         # i=0
@@ -271,7 +339,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
                 split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records')
-                
                 # [{'name': i, 'id':i} for i in split_data.columns]
     
     @app.callback(

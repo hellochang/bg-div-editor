@@ -62,7 +62,7 @@ bg_card = [
                     },
                     page_size=20)
                 ], id='bg-content'),
-            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False),
+            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)
         ]
     ),
 ]
@@ -410,8 +410,23 @@ top_select_panel = dbc.Card(
         dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
         html.Br(),
         date_selection,
-
         html.Br(),
+        html.Br(),
+        
+        html.Details([
+            html.Summary('Customize path'),
+            html.Div([
+                dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
+                dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
+                dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
+                dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
+            
+                html.Br(),
+                dbc.Button(id="submit-path-button", n_clicks=0, 
+                           children='Submit path', color='success')
+                ]), 
+            ]),
+
         html.Br(),
         dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
         index_only_selection,
