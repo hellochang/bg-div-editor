@@ -20,7 +20,9 @@ factset_card = [
     dbc.CardBody(
         [
             html.H5('Compare with factset', className="card-title"),
-            dcc.Graph(id='factset-graph'),
+            html.Div([dcc.Graph(id='factset-graph'),
+            ], id='facset-content'),
+            dbc.Alert(id="factset-warning-msg", color="info", is_open=False),            
         ]
     ),
 ]
@@ -30,10 +32,12 @@ bbg_card = [
     dbc.CardBody(
         [
             html.H5('Bloomberg data', className="card-title"),
-            dcc.Graph(id='bbg-graph'),
+            html.Div([dcc.Graph(id='bbg-graph'),
             # html.Div([dash_table.DataTable(
             #     id='bbg-data-table',
             # )]),
+            ], id='bbg-content'),
+            dbc.Alert(id="bbg-warning-msg", color="info", is_open=False),            
         ]
     ),
 ]  
@@ -43,20 +47,22 @@ bg_card = [
     dbc.CardBody(
         [
             html.H5('BG Data', className="card-title"),
-            dcc.Graph(id='bg-db-graph'),
-            html.Div([dash_table.DataTable(
-                id='bg-db-data-table',
-                filter_action="native",
-                sort_action="native",
-                sort_mode="multi",
-                # page_action='none',
-                fixed_rows={'headers': True},
-                style_header={
-                    'backgroundColor': 'white',
-                    'fontWeight': 'bold'
-                },
-                page_size=20,
-            )]),  
+            html.Div([
+                dcc.Graph(id='bg-db-graph'),
+                dash_table.DataTable(
+                    id='bg-db-data-table',
+                    filter_action="native",
+                    sort_action="native",
+                    sort_mode="multi",
+                    # page_action='none',
+                    fixed_rows={'headers': True},
+                    style_header={
+                        'backgroundColor': 'white',
+                        'fontWeight': 'bold'
+                    },
+                    page_size=20)
+                ], id='bg-content'),
+            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False),
         ]
     ),
 ]
@@ -66,22 +72,25 @@ split_card = [
     dbc.CardBody(
         [
             html.H5('Split History', className="card-title"),
-            html.Div([dash_table.DataTable(id='split-data-table',)])
+            html.Div([
+                dash_table.DataTable(id='split-selected-data-table')
+                ], id='split-content'),
+            dbc.Alert(id="split-warning-msg", color="info", is_open=False),
         ]
     ),
 ]
 
 row_2 = dbc.Row(
     [
-        dbc.Col([dbc.Card(factset_card, id='factset-card', color="dark", outline=True),
-                  dbc.Alert(id="factset-warning-msg", color="info", is_open=False)]),
+        dbc.Col(dbc.Card(factset_card, id='factset-card', color="dark", outline=True)),
         dbc.Col(dbc.Card(bbg_card, id='bbg-card', color="dark", outline=True))
     ]
 )
+ 
 row_3 = dbc.Row(
     [
         dbc.Col(dbc.Card(split_card, id='split-card', color="dark", outline=True)),
-        # dbc.Col([dbc.Card(bg_card, id='bg-db-card', color="dark", outline=True),
+        dbc.Col(dbc.Card(bg_card, id='bg-db-card', color="dark", outline=True)),
     ]
 )
 
@@ -138,16 +147,18 @@ main_panel_upload_save_panel = html.Div([
     ])
 
 main_panel_hidden_storage = html.Div([
-        html.Div([dash_table.DataTable(
-            id='data-table',
-            editable=True,
-            )], style= {'display': 'none'}),
-        
-        html.Div([dash_table.DataTable(
-            id='new-data-data-table'
-            )], style= {'display': 'none'})    
-        ]
-    )
+    dcc.Store(id='data-table'),
+    dcc.Store(id='new-data-data-table'),   
+     
+    dcc.Store(id='split-db-data-table'),        
+    # dcc.Store(id='split-selected-data-table'),        
+  
+    dcc.Store(id='bg-div-data-table'),        
+    dcc.Store(id='div-selected-data-table'),
+    dcc.Store(id='basic-info-data-table'),
+    dcc.Store(id='factset-data-table')
+    
+    ])
         
 main_panel = html.Div([
     dbc.Alert(id="no-data-msg", color="info", is_open=False),
@@ -378,7 +389,7 @@ date_selection = dcc.DatePickerSingle(
     id='div-date-picker',
     min_date_allowed=date(2010, 8, 30),
     max_date_allowed=(datetime.today() + offsets.MonthEnd(0)),
-    date = date(2021, 11, 30),
+    date = date(2021, 12, 31),
     # date=(datetime.today() + pd.offsets.MonthEnd(0)),
     # disabled_days=,
     # display_format='YYYYMMDD',
@@ -404,7 +415,7 @@ top_select_panel = dbc.Card(
         html.Br(),
         dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
         index_only_selection,
-        html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
+        # html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
         html.Hr(),
         data_view_type_selection,
     ]), className='mt-3')

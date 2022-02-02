@@ -7,6 +7,7 @@ Created on Thu Dec 16 12:52:24 2021
 
 from dash import dash
 from dash.long_callback import DiskcacheLongCallbackManager
+import dash_bootstrap_components as dbc
 
 ## Diskcache
 import diskcache
@@ -38,12 +39,12 @@ if __name__ == "__main__":
                     "content": "width=device-width, initial-scale=1"}],
         # long_callback_manager=long_callback_manager,
         # prevent_initial_callbacks=True,
-        # external_stylesheets=[dbc.themes.CYBORG]
+        external_stylesheets=[dbc.themes.BOOTSTRAP]
     )
     app.config.suppress_callback_exceptions = True
     app.layout = app_layout
     register_callbacks(app, long_callback_manager, data_importer_dash)
     
     # app.run_server(debug=False, host='0.0.0.0', port=8080, use_reloader=False)
-    app.run_server(debug=True, port=80, dev_tools_silence_routes_logging = False)
+    app.run_server(debug=True, port=80, dev_tools_silence_routes_logging = True)
             

@@ -7,6 +7,7 @@ Created on Fri Jan 21 13:41:16 2022
 from dash import callback_context, no_update
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
+# from dash_extensions.enrich import Trigger, FileSystemCache
 
 import pandas as pd
 import numpy as np
@@ -21,13 +22,14 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     Registers the callbacks to the app
     """
 
-    def compare_new_data_with_factset(secid, update_date, bbg, factset=None):
-        if factset is None:
-            factset = factset_new_data(secid)
+    def compare_new_data_with_factset(secid, update_date, bbg, factset):
+        # if factset is None:
+        #     factset = factset_new_data(secid, last_exdate)
         if check_exist:
-            factset = factset[factset['exdate'] <= update_date]
-        # print('preprocess_bbg_data')
-        # print(dates_cols)
+            factset = factset[factset['exdate'] <= update_date]##TODO inorporate into laod_data step
+        # print('compare_new_data_with_factset')
+        # print(factset)
+        # print(bbg)
         bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
         new_data_comparison = pd.merge(bbg, factset, how='outer', 
                                        on=['fsym_id','exdate','div_type'],
@@ -165,25 +167,41 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                         lst_changed_cell = lst_changed_cell + [col, col]
         return lst_idx, lst_changed_cell   
     
-    
-    @app.long_callback(
+    # fsc = FileSystemCache("cache_dir")
+    # fsc.set("progress", None)
+        
+        
+    # @app.callback(Output("progress", "children"), Trigger("interval", "n_intervals"))
+    # def update_progress():
+    #     value = fsc.get("progress")  # get progress
+    #     if value is None:
+    #         raise PreventUpdate
+    #     return "Progress is {:.0f}%".format(float(fsc.get("progress")) * 100)
+
+    @app.callback(
         Output('data-table', 'data'),
-        Output('data-table', 'columns'),
+        # Output('data-table', 'columns'),
         Output('view-type-list', 'data'),
-        Output('progress-div', 'style'),
+        # Output('progress-div', 'style'),
+        Output('bg-div-data-table', 'data'),
+        # Output('bg-div-data-table', 'columns'),
+        Output('split-db-data-table', 'data'),
+        # Output('split-db-data-table', 'columns'),
+        Output('basic-info-data-table', 'data'),
+        Output('factset-data-table', 'data'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
-        running=[
-            (Output("div-date-picker", "disabled"), True, False),
-            (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
-            (Output("main-panel-div", "style"), {'display': 'none'}, {}),
-            (Output("view-type-div", "style"), {'display': 'none'}, {}),
-        ],
-        manager=long_callback_manager,
-        progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
+        # running=[
+        #     (Output("div-date-picker", "disabled"), True, False),
+        #     (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
+        #     (Output("main-panel-div", "style"), {'display': 'none'}, {}),
+        #     (Output("view-type-div", "style"), {'display': 'none'}, {}),
+        # ],
+        # manager=long_callback_manager,
+        # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
     )
     # @functools.lru_cache(maxsize=5)
-    def load_data_to_dash(set_progress, update_date, index_flag):
+    def load_data_to_dash(update_date, index_flag):
         # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
         # if update_date == "":
         #     update_date = monthend_date
@@ -191,41 +209,70 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         f_date = update_date.replace('-','')
         new_data=pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
         update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
-    
-        total=4
-        i=0
+        print('load_data_to_dash')
+
+        # i=0
         (new_data, skipped, pro_rata, splits) = \
             preprocess_bbg_data(new_data, update_list, index_flag, update_date)
         
-        set_progress((str(i + 1), str(total)))
-    
+        # set_progress((str(i + 1), str(total)))
         new_data = bbg_data_single_security(new_data)
-        set_progress((str(i + 1), str(total)))
+        # set_progress((str(i + 1), str(total)))
     
         skipped = process_skipped(skipped)
-        set_progress((str(i + 1), str(total)))
+        # set_progress((str(i + 1), str(total)))
         
-        (manual_list, all_goods) = bulk_upload(new_data, update_date)
-        set_progress((str(i + 1), str(total)))
+        seclist = sorted(list(new_data['fsym_id'].unique()))
+        # total=8
+        bg_div_data = load_bg_div_data(seclist)
+        # set_progress((str(i + 1), str(total)))
+        split_data = load_split_data(seclist)
+        # set_progress((str(i + 1), str(total)))
+
+        basic_info_data = load_basic_info_data(seclist)
+        # set_progress((str(i + 1), str(total)))
+        
+        factset_data = load_factset_data(seclist)
+
+        factset_data = factset_data_single_security(factset_data)
+
+        # set_progress((str(i + 1), str(total)))
+
+        (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
+        print('bulk_upload')
+        # set_progress((str(i + 1), str(total)))
      
-        # print('load_data_to_dash')
         # print(new_data.dtypes)
         # print('Loaded')
         # print(all_goods)
         # print(manual_list)
         # print(skipped)
-        dropdown_options = pd.DataFrame({
-            'all_goods': pd.Series(sorted(all_goods['fsym_id'].to_list()))\
-                if all_goods is not None else pd.Series([]),
-            'mismatch': pd.Series(sorted(manual_list)) \
-                if manual_list is not None else pd.Series([]),
-            'skipped': pd.Series(skipped['fsym_id'].unique())\
-                if skipped is not None else pd.Series([])})
-            
+        
+        all_goods_lst = sorted(all_goods['fsym_id'].to_list()) if all_goods is not None else []
+        mismatch_lst = sorted(manual_list) if manual_list is not None else []
+        skipped_lst = skipped['fsym_id'].unique() if skipped is not None else []
+        # print(all_goods_lst)
+        # print(mismatch_lst)
+        # print(skipped_lst)
+      
+        # fysm_id_lst = [*all_goods_lst, *mismatch_lst, *skipped_lst]
+        # print(fysm_id_lst)
+        print('after lst')
+
+        # print(factset_data)
+        view_type_ids = pd.DataFrame({
+            'all_goods': pd.Series(all_goods_lst),
+            'mismatch': pd.Series(mismatch_lst),   
+            'skipped': pd.Series(skipped_lst)})
+        print('after view_type_ids')
+           
         # print(dropdown_options)
-        return new_data.to_dict('records'), [{'name': i, 'id':i} \
-                                             for i in new_data.columns],\
-                dropdown_options.to_dict('records'), {'display': 'none'}
+        return new_data.to_dict('records'),\
+                view_type_ids.to_dict('records'),\
+                bg_div_data.to_dict('records'),\
+                split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records')
+                
+                # [{'name': i, 'id':i} for i in split_data.columns]
     
     @app.callback(
         Output('new-data-data-table', 'data'),
@@ -234,7 +281,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('no-data-msg', 'children'),
         Output('no-data-msg', 'is_open'),
         Output('main-panel', 'style'),
-        Output('modified-data-rows', 'columns'),
+        # Output('modified-data-rows', 'columns'),
         Input('view-type-radio', 'value'),
         Input('data-table', 'data'),
         Input('view-type-list', 'data'))
@@ -254,25 +301,49 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'\
             if not has_data else 'Data loaded'
         display_option = {'display': 'none'} if not has_data else {}
-        
+   
         return selected_data.to_dict('records'),\
             [{'name': i, 'id':i} for i in selected_data.columns],\
            fsym_id_dropdown_options,\
            no_data_msg, not has_data, display_option,\
-           [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+           # [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
     
     
     @app.callback(
         Output('fsym-id-data-table', 'data'),
         Output('fsym-id-data-table', 'columns'),
+        Output('div-selected-data-table', 'data'),
+        Output('split-selected-data-table', 'data'),
+        Output('split-selected-data-table', 'columns'),
+        # Output('no-', 'is_open'),        
+        Output('split-warning-msg', 'is_open'),
+        Output('split-warning-msg', 'children'),
+        Output('split-content', 'style'),
         Input('fsym-id-dropdown', 'value'),
-        State('new-data-data-table', 'data'))
-    def filter_fysm_id_data(selected, datatable):
+        State('new-data-data-table', 'data'),
+        State('bg-div-data-table', 'data'),
+        State('split-db-data-table', 'data'))
+    def filter_fysm_id_data(selected, datatable, div_datatable, split_datatable):
         if datatable is None: return no_update
         df = pd.DataFrame(datatable)
+        bg_div_df = pd.DataFrame(div_datatable)
+        split_df = pd.DataFrame(split_datatable)
+        # print('filter_fysm_id_data')
+        # print(bg_div_df)
+        # print(split_df)
         res = df[df['fsym_id'] == selected]
-        return res.to_dict('records'), [{'name': i, 'id':i} for i in res.columns]
-    
+        
+        div_selected = bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
+
+        if split_df.shape[0] != 0:
+            split_df = split_df[split_df['fsym_id']==selected]
+
+        return res.to_dict('records'), [{'name': i, 'id':i} for i in res.columns],\
+            div_selected.to_dict('records'), split_df.to_dict('records'),\
+            [{'name': i, 'id':i} for i in split_df.columns], split_df.shape[0] == 0,\
+            f'There is no split data for {selected}',\
+                {} if split_df.shape[0] != 0 else  {'display': 'none'}
+            
     @app.callback(
         Output('basic-info', 'children'),
         Output('comparison-data-table', 'data'),
@@ -280,31 +351,48 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('fsym-id-graph', 'figure'),
         Output('comparison-msg', 'children'),
         Input('fsym-id-data-table', 'data'),
-        State('div-date-picker', 'date'))
-    def get_basic_info(new_data, update_date):
-        new_data = pd.DataFrame(new_data)
-        fsym_id = new_data['fsym_id'].values[0]
+        State('div-selected-data-table', 'data'),
+        State('div-date-picker', 'date'),
+        State('basic-info-data-table', 'data'),
+        State('factset-data-table', 'data'),
+        )
+    def get_basic_info(new_data, bg_div_data, update_date, 
+                       basic_info_datatable, factset_datatable):
         # print('get_basic_info')
+        new_data = pd.DataFrame(new_data)
+        # print(new_data)
+
+        fsym_id = new_data['fsym_id'].values[0]
+        bg_div_df = pd.DataFrame(bg_div_data)
+        info_df = pd.DataFrame(basic_info_datatable)
+        # print(info_df)
+
+        info_df = info_df[info_df['fsym_id']==fsym_id]
+        factset_df = pd.DataFrame(factset_datatable)
+        # print(factset_df)
+        if factset_df.shape[0] != 0:
+            factset_df = factset_df[factset_df['fsym_id']==fsym_id]
         # print(new_data.dtypes)
         global check_exist
-        check_exist = check_existence(fsym_id)
-        basic_info_str = basic_info(fsym_id, new_data)
+        check_exist = bg_div_df.shape[0] != 0
+        basic_info_str = basic_info(fsym_id, info_df, new_data)
         payment_exist_msg = ''
         if not check_exist:
+            # last_exdate = None
             comparison_msg = "This is a newly added."
-            factset = factset_new_data(fsym_id)
             comparison = compare_new_data_with_factset(fsym_id, update_date,
-                                                       new_data, factset)
-            fig = plot_dividend_data_comparison(factset, new_data)
+                                                       new_data,  factset_df)
+            fig = plot_dividend_data_comparison(factset_df, new_data)
         else:
+            # last_exdate = last_payment_exdate(fsym_id, bg_div_df['exdate'])
             (last_cur, fstest_cur) = dividend_currency(new_data)
-            comparison = compare_new_data_with_factset(fsym_id, update_date, new_data)
+            comparison = compare_new_data_with_factset(fsym_id, update_date, new_data, factset_df)
             if fstest_cur != last_cur:
                 comparison_msg = f'Possible currency change. Last payment:{last_cur}. Factset payment:{fstest_cur}'
             new_data['listing_currency'] = fstest_cur
             new_data['payment_currency'] = last_cur
             comparison_msg = 'New Dividend Data'
-            fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data)
+            fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data, bg_div_df)
             if payment_exist_msg != '': comparison_msg = payment_exist_msg 
         return basic_info_str, comparison.to_dict('records'),\
             [{'name': i, 'id':i} for i in comparison.columns],\
@@ -312,23 +400,33 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
     @app.callback(
         Output('factset-graph', 'figure'),
-        Output('factset-card', 'style'),
+        Output('facset-content', 'style'),
         Output('factset-warning-msg', 'is_open'),
         Output('factset-warning-msg', 'children'),
-        Input('fsym-id-data-table', 'data'))
-    def plot_comparison(new_data):
+        Input('fsym-id-data-table', 'data'),
+        State('div-selected-data-table', 'data'))
+    def plot_comparison(new_data, div_selected_datatable):
         bbg = pd.DataFrame(new_data)
-        fsym_id = bbg['fsym_id'].values[0]
-        query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
+        # fsym_id = bbg['fsym_id'].values[0]
+        # query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
     
-        try:
-            bg = data_importer_dash.load_data(query)
-        except Exception as e:
-            warning_msg = f'Error while loading data from DB: {e}'
-            fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
-            return fig, {'display': 'none'}, True, warning_msg
-        fig = plot_dividend_data_comparison(bg, bbg)
-        return fig, {}, False, ''   
+        # try:
+        bg = pd.DataFrame(div_selected_datatable)
+        # except Exception as e:#TODO
+        #     warning_msg = f'Error while loading data from DB: {e}'
+        #     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+        #     return fig, {'display': 'none'}, True, warning_msg
+        if len(bg) == 0:
+            has_data = False
+            warning_msg = 'No need to compare since this holding is not in the bg_div table.' 
+            fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'})) 
+            display_option = {'display': 'none'}
+        else:
+            has_data = True
+            warning_msg = '' 
+            fig = plot_dividend_data_comparison(bg, bbg)
+            display_option = {}
+        return fig, display_option, not has_data, warning_msg   
     
     @app.callback(
         Output('bbg-graph', 'figure'),
@@ -343,51 +441,78 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('bg-db-graph', 'figure'),
         Output('bg-db-data-table', 'data'),
         Output('bg-db-data-table', 'columns'),
-        Output('bg-db-card', 'style'),
+        Output('bg-content', 'style'),
         Output('bg-db-warning-msg', 'is_open'),
         Output('bg-db-warning-msg', 'children'),
-        Input('fsym-id-dropdown', 'value'))
-    def plot_db(fsym_id):
-        query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
-        try:
-            df = data_importer_dash.load_data(query)
-            df.sort_values(by=['exdate'], ascending=False, inplace=True)
-            fig = plot_generic_dividend_data(df)
-        except Exception as e:
-            warning_msg = f'Error while loading data from DB: {e}'
-            fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
-            return fig, {}, [], {'display': 'none'}, warning_msg
+        Input('div-selected-data-table', 'data'))
+    def plot_db(div_selected_datatable):
+        # query = f"select * from fstest.dbo.bg_div where fsym_id ='{fsym_id}'"
+        # try:
+            # df = data_importer_dash.load_data(query)
+        # print('plot_db')
+        # print(pd.DataFrame(div_selected_datatable))
+
+        # except Exception as e:
+        #     warning_msg = f'Error while loading data from DB: {e}'
+        #     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
+        #     return fig, {}, [], {'display': 'none'}, warning_msg
         
-        if df is None:
+        if len(div_selected_datatable) == 0:
             has_data = False
-            warning_msg = 'This holding is not in the DB.' 
+            warning_msg = 'This holding is not in the bg_div table.' 
+            fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'}))
             cols = []
-            df = {}
+            df = []
         else:
             has_data = True
             warning_msg = ''
+            df = pd.DataFrame(div_selected_datatable)
+            df.sort_values(by=['exdate'], ascending=False, inplace=True)
+            fig = plot_generic_dividend_data(df)
             cols = [{'name': i, 'id':i} for i in df.columns]
             df = df.to_dict('records')        
-        return fig, df, cols, {'display': 'none'} if not has_data \
-            else {}, has_data, warning_msg
+        return fig, df, cols, {'display': 'none'} if not has_data else {}, not has_data, warning_msg
     
-    @app.callback(
-        Output('split-data-table', 'data'),
-        Output('split-data-table', 'columns'),
-        # Output('load-data-msg', 'value'),
-        Input('fsym-id-dropdown', 'value'))
-    def check_split_history(fsym_id):
-        query = f"""select 
-                    fsym_id,p_split_date,p_split_factor, 
-                    exp(sum(log(p_split_factor))  OVER (ORDER BY p_split_date desc)) cum_split_factor 
-                    from fstest.fp_v2.fp_basic_splits where fsym_id= '{fsym_id}'
-                    order by p_split_date
-                """
-        df = data_importer_dash.load_data(query)
-        df.sort_values(by=['p_split_date'], ascending=False, inplace=True)
-        data = df.to_dict('records') if df is not None else []
-        cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
-        return data, cols
+    # @app.callback(
+    #     Output('split-data-table', 'data'),
+    #     Output('split-data-table', 'columns'),
+    #     # Output('load-data-msg', 'value'),
+    #     Input('fsym-id-dropdown', 'value'),
+    #     Input('split-data-table', 'data'))
+    # def check_split_history(fsym_id, split_data):
+    #     # query = f"""select 
+    #     #             fsym_id,p_split_date,p_split_factor, 
+    #     #             exp(sum(log(p_split_factor))  OVER (ORDER BY p_split_date desc)) cum_split_factor 
+    #     #             from fstest.fp_v2.fp_basic_splits where fsym_id= '{fsym_id}'
+    #     #             order by p_split_date
+    #     #         """
+    #     # df = data_importer_dash.load_data(query)
+    #     # df.sort_values(by=['p_split_date'], ascending=False, inplace=True)
+    #     split_df = pd.DataFrame(split_data)
+    #     df = split_df[split_df==fsym_id]
+    #     data = df.to_dict('records') if df is not None else []
+    #     cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
+    #     return data, cols
+    # @app.callback(
+    #     Output('split-data-table', 'data'),
+    #     Output('split-data-table', 'columns'),
+    #     # Output('load-data-msg', 'value'),
+    #     Input('fsym-id-dropdown', 'value'),
+    #     Input('split-selected-data-table', 'data'))
+    # def check_split_history(fsym_id, split_data):
+    #     # query = f"""select 
+    #     #             fsym_id,p_split_date,p_split_factor, 
+    #     #             exp(sum(log(p_split_factor))  OVER (ORDER BY p_split_date desc)) cum_split_factor 
+    #     #             from fstest.fp_v2.fp_basic_splits where fsym_id= '{fsym_id}'
+    #     #             order by p_split_date
+    #     #         """
+    #     # df = data_importer_dash.load_data(query)
+    #     # df.sort_values(by=['p_split_date'], ascending=False, inplace=True)
+    #     split_df = pd.DataFrame(split_data)
+    #     df = split_df[split_df==fsym_id]
+    #     data = df.to_dict('records') if df is not None else []
+    #     cols = [{'name': i, 'id':i} for i in df.columns] if df is not None else []
+    #     return data, cols
     
     @app.callback(
         Output('output-data-table', 'data'),
