@@ -177,10 +177,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
       Output('seclist-path', 'valid'),
       Output('path-warning-msg1', 'is_open'),
       Output('path-warning-msg2', 'is_open'),
+      Output('div-data-path', 'placeholder'),
+      Output('seclist-path', 'placeholder'),
+      Input('div-date-picker', 'date'), 
       Input('div-data-path', 'value'),
       Input('seclist-path', 'value'),
       )
-    def check_path_validity(new_data_path=None, update_list_path=None):
+    def check_path_validity(update_date, new_data_path=None, update_list_path=None):
         import_warning_msg_1 = ''
         import_warning_msg_2 = ''       
         
@@ -198,10 +201,14 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 seclist_path_valid = True
             except Exception as e:
                 import_warning_msg_2 = f'Error for seclist path: {e}. \nUsing default path.'
-                
+        
+        f_date = update_date.replace('-','')
+        new_data_default_path = f'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet'
+        update_list_default_path = f'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv'
         return import_warning_msg_1, import_warning_msg_2,\
             div_path_valid, seclist_path_valid,\
-                not div_path_valid and new_data_path, not seclist_path_valid and update_list_path
+            not div_path_valid and new_data_path, not seclist_path_valid and update_list_path,\
+            new_data_default_path, update_list_default_path
                 
     # @app.callback(
     #   Output('path-warning-msg', 'children'),

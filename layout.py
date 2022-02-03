@@ -6,8 +6,7 @@ Created on Fri Jan 21 13:41:16 2022
 """
 
 from pandas import offsets
-from dash import dcc
-from dash import html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import dash_table
 from datetime import date, datetime
@@ -416,7 +415,10 @@ top_select_panel = dbc.Card(
         html.Details([
             html.Summary('Customize path'),
             html.Div([
+                dbc.Label('Path for new dividend data'),
                 dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
+                html.Br(),
+                dbc.Label('Path for seclist'),
                 dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
                 dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
                 dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
