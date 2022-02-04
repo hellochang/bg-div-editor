@@ -85,11 +85,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             State('fsym-id-dropdown', 'value'),
             State('modify-list', 'data'))
     def update_modify_list(n_clicks, cur_fsym_id, modify_list):
-        if n_clicks:
-            modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
-            # print('update_modify_list')
-            # print(modify_list)
-            return modify_list, True
+        if not n_clicks:
+            return no_update
+    
+        modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
+        # print('update_modify_list')
+        # print(modify_list)
+        return modify_list, True
                  
     @app.callback(
             Output('fsym-id-dropdown', 'value'),
@@ -106,7 +108,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         if lst[-1] is None:
             lst = lst[:-1]
         lst.sort()
-        if not prev_clicks and not next_clicks:
+        if not cur_fsym_id:
             return lst[0], '', False
         if prev_clicks or next_clicks:
             idx = lst.index(cur_fsym_id)-1 \
@@ -350,37 +352,45 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
     @app.callback(
         Output('new-data-data-table', 'data'),
-        Output('new-data-data-table', 'columns'),
+        # Output('new-data-data-table', 'columns'),
         Output('fsym-id-dropdown', 'options'),
         Output('no-data-msg', 'children'),
         Output('no-data-msg', 'is_open'),
         Output('main-panel', 'style'),
-        # Output('modified-data-rows', 'columns'),
+        Output('modified-data-rows', 'columns'),
         Input('view-type-radio', 'value'),
         Input('data-table', 'data'),
         Input('view-type-list', 'data'))
-    def load_selected_data(selected_review_option, datatable, view_type_lst):
+    def load_selected_data(selected_review_option, datatable, view_type_data):
         df = pd.DataFrame(datatable)
-        df_selection = pd.DataFrame(view_type_lst)
+        # df_selection = pd.DataFrame(view_type_data)
         # print('load_selected_data')
         # print(df_selection)
-        selected_ids = df_selection[selected_review_option].unique()    
+        selected_ids = sorted(list(set([row[selected_review_option] for row in view_type_data])))
+
+        # selected_ids = df_selection[selected_review_option].unique()    
         if selected_ids[-1] is None:
             selected_ids = selected_ids[:-1] 
-        has_data = selected_ids.size > 0
-        fsym_id_dropdown_options = [{"label": i, "value": i} \
-                                    for i in selected_ids] if has_data else []
-    
-        selected_data = df[df['fsym_id'].isin(selected_ids)] if has_data else pd.DataFrame([])
-        no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'\
-            if not has_data else 'Data loaded'
-        display_option = {'display': 'none'} if not has_data else {}
-   
+        
+        has_data = len(selected_ids) > 0
+        if has_data:
+            no_data_msg = ''
+            fsym_id_dropdown_options = [{"label": i, "value": i} 
+                                        for i in selected_ids] 
+            selected_data = df[df['fsym_id'].isin(selected_ids)]
+            display_option = {}
+        else:
+            fsym_id_dropdown_options = []
+            selected_data = pd.DataFrame([])
+            no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'
+            display_option = {'display': 'none'}
+
         return selected_data.to_dict('records'),\
-            [{'name': i, 'id':i} for i in selected_data.columns],\
            fsym_id_dropdown_options,\
            no_data_msg, not has_data, display_option,\
-           # [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+                       # [{'name': i, 'id':i} for i in selected_data.columns],\
+
     
     
     @app.callback(
@@ -399,24 +409,27 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('split-db-data-table', 'data'))
     def filter_fysm_id_data(selected, datatable, div_datatable, split_datatable):
         if datatable is None: return no_update
-        df = pd.DataFrame(datatable)
-        bg_div_df = pd.DataFrame(div_datatable)
-        split_df = pd.DataFrame(split_datatable)
+        # df = pd.DataFrame(datatable)
+        # bg_div_df = pd.DataFrame(div_datatable)
+        # split_df = pd.DataFrame(split_datatable)
         # print('filter_fysm_id_data')
         # print(bg_div_df)
         # print(split_df)
-        res = df[df['fsym_id'] == selected]
-        
-        div_selected = bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
+        # res = df[df['fsym_id'] == selected]
+        # bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
+        new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
+        new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] 
+        div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if div_datatable is not None else []
+        split_selected = [row for row in split_datatable if row['fsym_id'] == selected]
+        split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if split_datatable is not None else []
+        # if split_df.shape[0] != 0:
+        #     split_df = split_df[split_df['fsym_id']==selected]
 
-        if split_df.shape[0] != 0:
-            split_df = split_df[split_df['fsym_id']==selected]
-
-        return res.to_dict('records'), [{'name': i, 'id':i} for i in res.columns],\
-            div_selected.to_dict('records'), split_df.to_dict('records'),\
-            [{'name': i, 'id':i} for i in split_df.columns], split_df.shape[0] == 0,\
+        return new_data_filtered, new_data_col,\
+            div_selected, split_selected,\
+            split_cols, len(split_datatable),\
             f'There is no split data for {selected}',\
-                {} if split_df.shape[0] != 0 else  {'display': 'none'}
+                {} if not split_datatable else  {'display': 'none'}
             
     @app.callback(
         Output('basic-info', 'children'),
@@ -605,12 +618,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('editor-fsym-id-dropdown', 'value'),
         State('output-data-table', 'data'))
     def update_changed_data_table(rows, rows_prev, fsym_id, modified_datatable):
+        if rows is None: return no_update
         global modify_data
 
         modified_df = pd.DataFrame(modified_datatable) 
-        # print(f'update_changed_data_table: ____________{i}')
-        # print('modified_df: ')
-        # print(modified_df)
+        print('update_changed_data_table: ____________')
+        print('modified_df: ')
+        print(modified_df)
         modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
         # print(modify_data)
         # df[df['fsym_id'] == fsym_id] = modified_df
@@ -620,10 +634,10 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         undo_delete_row = [row for row in rows_prev if row not in rows] if \
             (rows is not None and rows_prev is not None) and \
                 len(rows_prev) > len(rows) else []
-        # print('rows')
-        # print(pd.DataFrame(rows))
-        # print('rows_prev')
-        # print(pd.DataFrame(rows_prev))
+        print('rows')
+        print(pd.DataFrame(rows))
+        print('rows_prev')
+        print(pd.DataFrame(rows_prev))
         # print('undo_delete_row:')
         # print(pd.DataFrame(undo_delete_row))
         # res  = res +  undo_delete_row if undo_delete_row is not None else res
@@ -640,14 +654,26 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('output-data-table', 'data'),
         State('modified-data-rows', 'data'))
     def update_modified_data_table(rows_prev, rows, modified_rows):
+        # print('update_modified_data_table')
+        # print(rows)
+        # print(rows_prev)
+        if rows == None or rows_prev == None:
+            return no_update
+        # len_rows = len(rows) if rows is not None else 0
+        # len_rows_prev = len(rows_prev) if rows_prev is not None else 0
         if (len(rows) == len(rows_prev)):
+
+        # if len_rows == len_rows_prev:
             modified_rows = [i for i in rows if i not in rows_prev] \
                 if modified_rows is None \
                     else modified_rows + [i for i in rows if i not in rows_prev]
             modified_rows[-1]['action'] = 'update'
             modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
             modified_rows[-1]['action'] = 'original'
+            # print('modified_rows')
+        # print(pd.DataFrame(modified_rows))
         if (len(rows) < len(rows_prev)):
+        # if len_rows < len_rows_prev:
              modified_rows = modified_rows + [i for i in rows_prev if i not in rows]
              modified_rows[-1]['action'] = 'delete'
     
@@ -656,6 +682,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         for row in modified_rows:
             row.update({'id': idx})
             idx = idx + 1
+        # print(pd.DataFrame(modified_rows))
         return modified_rows
 
     @app.callback(

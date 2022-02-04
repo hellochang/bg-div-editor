@@ -353,6 +353,7 @@ editor_collapsible_component = dbc.Collapse(dbc.Card(
         modified_data_history_table,
         html.Br(),
         editor_upload_save_panel
+        
         ]),             
         className="w-85"),
         id="collapse-editor",
@@ -388,7 +389,7 @@ date_selection = dcc.DatePickerSingle(
     id='div-date-picker',
     min_date_allowed=date(2010, 8, 30),
     max_date_allowed=(datetime.today() + offsets.MonthEnd(0)),
-    date = date(2021, 12, 31),
+    date = date(2021, 11, 30),
     # date=(datetime.today() + pd.offsets.MonthEnd(0)),
     # disabled_days=,
     # display_format='YYYYMMDD',
