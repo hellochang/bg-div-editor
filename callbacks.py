@@ -31,6 +31,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # print(factset)
         # print(bbg)
         bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
+        factset['exdate'] = pd.to_datetime(factset['exdate'], format='%Y-%m-%d')
         new_data_comparison = pd.merge(bbg, factset, how='outer', 
                                        on=['fsym_id','exdate','div_type'],
                                        suffixes=('_bbg','_factset'))
@@ -99,15 +100,20 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             Output('warning-end-dropdown', 'is_open'),
             Input('next-button', 'n_clicks'),
             Input('prev-button', 'n_clicks'),
-            State('fsym-id-dropdown', 'value'),
+            Input('fsym-id-dropdown', 'value'),
             State('view-type-radio', 'value'),
             State('view-type-list', 'data'))
     def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
+        print('go_to_next_prev')
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
         lst = [row[view_type] for row in view_type_lst]
+        lst = list(set(lst))
         if lst[-1] is None:
             lst = lst[:-1]
+        print(lst)        
         lst.sort()
+        if not prev_clicks and not next_clicks:
+            return no_update
         if not cur_fsym_id:
             return lst[0], '', False
         if prev_clicks or next_clicks:
@@ -119,6 +125,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 end_dropdown_msg = f'This is the {beg_end_msg} Fsym Id.'
                 return no_update, end_dropdown_msg, True
             return lst[idx], '', False
+        # return lst[idx-1], '', False    
     
     @app.callback(
         Output('modified-data-rows', 'style_data_conditional'),
@@ -245,9 +252,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('bg-div-data-table', 'data'),
         # Output('bg-div-data-table', 'columns'),
         Output('split-db-data-table', 'data'),
-        # Output('split-db-data-table', 'columns'),
         Output('basic-info-data-table', 'data'),
         Output('factset-data-table', 'data'),
+        Output('skipped-data-table', 'data'),
         # Output('factset-data-table', 'valid'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
@@ -299,7 +306,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         skipped = process_skipped(skipped)
         # set_progress((str(i + 1), str(total)))
         
-        seclist = sorted(list(new_data['fsym_id'].unique()))
+        seclist = list(new_data['fsym_id'].unique())
         # total=8
         bg_div_data = load_bg_div_data(seclist)
         # set_progress((str(i + 1), str(total)))
@@ -310,13 +317,14 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # set_progress((str(i + 1), str(total)))
         
         factset_data = load_factset_data(seclist)
-
-        factset_data = factset_data_single_security(factset_data)
+        if factset_data.shape[0] != 0:
+            factset_data = factset_data_single_security(factset_data)
 
         # set_progress((str(i + 1), str(total)))
 
         (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
-        print('bulk_upload')
+        new_data = pd.concat([new_data, skipped])
+        print(new_data)
         # set_progress((str(i + 1), str(total)))
      
         # print(new_data.dtypes)
@@ -327,27 +335,28 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         
         all_goods_lst = sorted(all_goods['fsym_id'].to_list()) if all_goods is not None else []
         mismatch_lst = sorted(manual_list) if manual_list is not None else []
-        skipped_lst = skipped['fsym_id'].unique() if skipped is not None else []
+        skipped_lst = sorted(skipped['fsym_id'].unique()) if skipped is not None else []
         # print(all_goods_lst)
         # print(mismatch_lst)
         # print(skipped_lst)
       
         # fysm_id_lst = [*all_goods_lst, *mismatch_lst, *skipped_lst]
         # print(fysm_id_lst)
-        print('after lst')
+        # print('after lst')
 
         # print(factset_data)
         view_type_ids = pd.DataFrame({
             'all_goods': pd.Series(all_goods_lst),
             'mismatch': pd.Series(mismatch_lst),   
             'skipped': pd.Series(skipped_lst)})
-        print('after view_type_ids')
-           
+        # print('after view_type_ids')
+        new_data.to_csv('new_data_processed')
         # print(dropdown_options)
         return new_data.to_dict('records'),\
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
-                split_data.to_dict('records'), basic_info_data.to_dict('records'), factset_data.to_dict('records')
+                split_data.to_dict('records'), basic_info_data.to_dict('records'),\
+                    factset_data.to_dict('records'), skipped.to_dict('records')
                 # [{'name': i, 'id':i} for i in split_data.columns]
     
     @app.callback(
@@ -358,25 +367,33 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('no-data-msg', 'is_open'),
         Output('main-panel', 'style'),
         Output('modified-data-rows', 'columns'),
+        Output('next-button', 'n_clicks'),
+        Output('prev-button', 'n_clicks'),
         Input('view-type-radio', 'value'),
         Input('data-table', 'data'),
-        Input('view-type-list', 'data'))
-    def load_selected_data(selected_review_option, datatable, view_type_data):
-        df = pd.DataFrame(datatable)
+        State('view-type-list', 'data'),
+        State('skipped-data-table', 'data'))
+    def load_selected_data(selected_review_option, datatable, view_type_data, skipped):
         # df_selection = pd.DataFrame(view_type_data)
-        # print('load_selected_data')
-        # print(df_selection)
-        selected_ids = sorted(list(set([row[selected_review_option] for row in view_type_data])))
+        print('load_selected_data')
+        # print(df)
+        selected_ids = list(set([row[selected_review_option] for row in view_type_data]))
 
         # selected_ids = df_selection[selected_review_option].unique()    
         if selected_ids[-1] is None:
-            selected_ids = selected_ids[:-1] 
-        
+            selected_ids = selected_ids[:-1]
+        # if selected_ids[0] is None:
+        #     selected_ids = selected_ids[1:]
+        selected_ids = sorted(selected_ids)
         has_data = len(selected_ids) > 0
         if has_data:
             no_data_msg = ''
             fsym_id_dropdown_options = [{"label": i, "value": i} 
                                         for i in selected_ids] 
+            if view_type_data != 'skipped':
+                df = pd.DataFrame(datatable)
+            else:
+                df = pd.DataFrame(skipped)
             selected_data = df[df['fsym_id'].isin(selected_ids)]
             display_option = {}
         else:
@@ -384,11 +401,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             selected_data = pd.DataFrame([])
             no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'
             display_option = {'display': 'none'}
+        print(selected_data)
 
         return selected_data.to_dict('records'),\
            fsym_id_dropdown_options,\
            no_data_msg, not has_data, display_option,\
-            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns]
+            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns], 0, 0
                        # [{'name': i, 'id':i} for i in selected_data.columns],\
 
     
@@ -412,16 +430,18 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # df = pd.DataFrame(datatable)
         # bg_div_df = pd.DataFrame(div_datatable)
         # split_df = pd.DataFrame(split_datatable)
-        # print('filter_fysm_id_data')
+        print('filter_fysm_id_data')
         # print(bg_div_df)
         # print(split_df)
         # res = df[df['fsym_id'] == selected]
         # bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
         new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
-        new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] 
-        div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if div_datatable is not None else []
+        # print(datatable)
+        new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] if len(datatable) else []
+        div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if len(div_datatable) else []
         split_selected = [row for row in split_datatable if row['fsym_id'] == selected]
-        split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if split_datatable is not None else []
+        print(pd.DataFrame(split_selected))
+        split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if len(split_datatable) else []
         # if split_df.shape[0] != 0:
         #     split_df = split_df[split_df['fsym_id']==selected]
 

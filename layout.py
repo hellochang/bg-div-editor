@@ -147,7 +147,8 @@ main_panel_upload_save_panel = html.Div([
 
 main_panel_hidden_storage = html.Div([
     dcc.Store(id='data-table'),
-    dcc.Store(id='new-data-data-table'),   
+    dcc.Store(id='new-data-data-table'),  
+    dcc.Store(id='skipped-data-table'),
      
     dcc.Store(id='split-db-data-table'),        
     # dcc.Store(id='split-selected-data-table'),        
@@ -156,6 +157,7 @@ main_panel_hidden_storage = html.Div([
     dcc.Store(id='div-selected-data-table'),
     dcc.Store(id='basic-info-data-table'),
     dcc.Store(id='factset-data-table')
+    
     
     ])
         
@@ -321,8 +323,7 @@ editor_upload_save_panel = html.Div([
         width=2), justify='end'),
     dbc.Row(html.Br()),
     dbc.Row(dbc.Col(dbc.Alert(id="save-modified-msg", color="info", 
-                              is_open=False, duration=600),
-                    width=10),
+                              is_open=False, duration=1200)),
             justify='end')
     ])
 
@@ -412,7 +413,7 @@ top_select_panel = dbc.Card(
         date_selection,
         html.Br(),
         html.Br(),
-        
+
         html.Details([
             html.Summary('Customize path'),
             html.Div([
@@ -427,8 +428,7 @@ top_select_panel = dbc.Card(
                 html.Br(),
                 dbc.Button(id="submit-path-button", n_clicks=0, 
                            children='Submit path', color='success')
-                ]), 
-            ]),
+                ]),]),
 
         html.Br(),
         dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
