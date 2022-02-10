@@ -131,11 +131,16 @@ main_panel_fsym_id_selection = html.Div([
              dbc.Col(dbc.Button(id="modify-button", n_clicks=0, 
                                 children='Modify Later', color='warning'), 
                      width=1), 
+             dbc.Col(dbc.Switch(
+                    id="modify-switch",
+                    label="All modified secid added",
+                    value=False), width=1), 
              ], justify='start')
     ])           
     
         
 main_panel_upload_save_panel = html.Div([
+    html.Br(),
     dbc.Row(dbc.Col(
         dbc.Button(id="upload-button", n_clicks=0, 
                    children='Upload original to DB', color='success'), 
@@ -314,7 +319,7 @@ edit_entry_button = html.Div([
         className="mb-3",
         color="primary",
         n_clicks=0)
-    ], id='collapse-button-div')
+    ], className="d-grid gap-2", id='collapse-button-div')
 
 editor_upload_save_panel = html.Div([
     dbc.Row(dbc.Col(

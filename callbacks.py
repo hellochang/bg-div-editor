@@ -629,7 +629,15 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         if selected == 'All':
             return modify_data.to_dict('records')
         return modify_data[modify_data['fsym_id'] == selected].to_dict('records')
-    
+     
+    @app.callback(
+        Output('collapse-button', 'disabled'),
+        Input('modify-switch', 'value'))
+    def show_collapse_button(is_switch_on):
+        if is_switch_on:
+            return False,
+        return True
+        
     @app.callback(
         Output('edit-data-table', 'data'),
         # State('edit-data-table', 'data'),
