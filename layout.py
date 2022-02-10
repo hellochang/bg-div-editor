@@ -21,6 +21,7 @@ factset_card = [
             html.H5('Compare with factset', className="card-title"),
             html.Div([dcc.Graph(id='factset-graph'),
             ], id='facset-content'),
+            html.Br(),
             dbc.Alert(id="factset-warning-msg", color="info", is_open=False),            
         ]
     ),
@@ -36,6 +37,7 @@ bbg_card = [
             #     id='bbg-data-table',
             # )]),
             ], id='bbg-content'),
+            html.Br(),
             dbc.Alert(id="bbg-warning-msg", color="info", is_open=False),            
         ]
     ),
@@ -61,6 +63,7 @@ bg_card = [
                     },
                     page_size=20)
                 ], id='bg-content'),
+            html.Br(),
             dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)
         ]
     ),
@@ -74,6 +77,7 @@ split_card = [
             html.Div([
                 dash_table.DataTable(id='split-selected-data-table')
                 ], id='split-content'),
+            html.Br(),
             dbc.Alert(id="split-warning-msg", color="info", is_open=False),
         ]
     ),
@@ -314,7 +318,7 @@ modified_data_history_table = dbc.Row(dbc.Col(dash_table.DataTable(
 
 edit_entry_button = html.Div([
     dbc.Button(
-        children="Edit entries",
+        children="Show Editor",
         id="collapse-button",
         className="mb-3",
         color="primary",
@@ -441,6 +445,14 @@ top_select_panel = dbc.Card(
         # html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
         html.Hr(),
         data_view_type_selection,
+        html.Br(),
+        dbc.Button(
+            children='Load data',
+            color="primary",
+            # disabled=True,
+            n_clicks=0,
+            id='load-data-button'
+        ),
     ]), className='mt-3')
 
 

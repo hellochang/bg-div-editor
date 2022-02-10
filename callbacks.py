@@ -16,6 +16,8 @@ from typing import List, Tuple
 
 from bg_data_uploader import *
 
+import dash_bootstrap_components as dbc
+from layout import div_uploader
 
 def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     """
@@ -30,6 +32,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # print('compare_new_data_with_factset')
         # print(factset)
         # print(bbg)
+        factset = factset.copy()
         bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
         factset['exdate'] = pd.to_datetime(factset['exdate'], format='%Y-%m-%d')
         new_data_comparison = pd.merge(bbg, factset, how='outer', 
@@ -308,7 +311,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         skipped = process_skipped(skipped)
         # set_progress((str(i + 1), str(total)))
         
-        seclist = list(new_data['fsym_id'].unique())
+        seclist = list(new_data['fsym_id'].unique()) + list(skipped['fsym_id'].unique())
         # total=8
         bg_div_data = load_bg_div_data(seclist)
         # set_progress((str(i + 1), str(total)))
@@ -378,10 +381,16 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     def load_selected_data(selected_review_option, datatable, view_type_data, skipped):
         # df_selection = pd.DataFrame(view_type_data)
         print('load_selected_data')
+        if view_type_data != 'skipped':
+            df = pd.DataFrame(datatable)
+        else:
+            df = pd.DataFrame(skipped)
         # print(df)
         selected_ids = list(set([row[selected_review_option] for row in view_type_data]))
 
-        # selected_ids = df_selection[selected_review_option].unique()    
+        # selected_ids = df_selection[selected_review_option].unique() 
+
+        
         if selected_ids[-1] is None:
             selected_ids = selected_ids[:-1]
         # if selected_ids[0] is None:
@@ -392,10 +401,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             no_data_msg = ''
             fsym_id_dropdown_options = [{"label": i, "value": i} 
                                         for i in selected_ids] 
-            if view_type_data != 'skipped':
-                df = pd.DataFrame(datatable)
-            else:
-                df = pd.DataFrame(skipped)
+
             selected_data = df[df['fsym_id'].isin(selected_ids)]
             display_option = {}
         else:
@@ -411,8 +417,18 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns], 0, 0
                        # [{'name': i, 'id':i} for i in selected_data.columns],\
 
-    
-    
+
+    @app.callback(
+        Output('load-data-button', 'children'),
+        # Output('main-panel', 'style'),
+        # Output('load-data-button', 'children'),
+        Input('load-data-button', 'n_clicks'))
+    def load_data_spinner(n_clicks):
+        if n_clicks:
+            return [dbc.Spinner(div_uploader(), size="sm"), " Loading..."]
+        else:
+            return no_update
+        
     @app.callback(
         Output('fsym-id-data-table', 'data'),
         Output('fsym-id-data-table', 'columns'),
@@ -442,14 +458,15 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] if len(datatable) else []
         div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if len(div_datatable) else []
         split_selected = [row for row in split_datatable if row['fsym_id'] == selected]
-        print(pd.DataFrame(split_selected))
+        print(split_datatable)
+        print( len(split_datatable) == 0)
         split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if len(split_datatable) else []
         # if split_df.shape[0] != 0:
         #     split_df = split_df[split_df['fsym_id']==selected]
 
         return new_data_filtered, new_data_col,\
             div_selected, split_selected,\
-            split_cols, len(split_datatable),\
+            split_cols, len(split_datatable) == 0,\
             f'There is no split data for {selected}',\
                 {} if not split_datatable else  {'display': 'none'}
             
