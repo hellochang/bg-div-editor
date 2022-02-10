@@ -59,6 +59,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('editor-fsym-id-dropdown', 'value'),
         Input("collapse-button", "n_clicks"),
         Input('modify-list', 'data'),
+        Input('modify-switch', 'value'),
         State("collapse-editor", "is_open"),
         State('new-data-data-table', 'data'),
         # running=[
@@ -66,7 +67,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # ],
         # manager=long_callback_manager,
         )
-    def get_editor_data(n, modify_lst, is_open, datatable):
+    def get_editor_data(n_clicks, modify_lst, is_switch_on, is_open, datatable):
+        if not modify_lst: return no_update
         df = pd.DataFrame(datatable)
         lst = [row['name'] for row in modify_lst]
         global modify_data 
@@ -74,8 +76,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id']]
         # fsym_ids = [{"label": 'All', "value": 'All'}] + \
         #[{"label": i, "value": i} for i in modify_data['fsym_id']]
-    
-        if n:
+        if not is_switch_on: return False, fsym_ids , fsym_ids[0]['value']
+        if n_clicks:
             return not is_open, fsym_ids , fsym_ids[0]['value']
         return is_open, fsym_ids , fsym_ids[0]['value']
     
@@ -626,17 +628,19 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Input('editor-fsym-id-dropdown', 'value'))
         # State('edit-data-table', 'data'))
     def filter_fysm_id_editor(selected):
+        if modify_data.shape[0] == 0: return no_update
         if selected == 'All':
             return modify_data.to_dict('records')
         return modify_data[modify_data['fsym_id'] == selected].to_dict('records')
      
     @app.callback(
         Output('collapse-button', 'disabled'),
+        Output('modify-button', 'disabled'),
         Input('modify-switch', 'value'))
     def show_collapse_button(is_switch_on):
         if is_switch_on:
-            return False,
-        return True
+            return False, True
+        return True, False
         
     @app.callback(
         Output('edit-data-table', 'data'),
