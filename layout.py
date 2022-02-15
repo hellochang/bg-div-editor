@@ -9,7 +9,7 @@ from pandas import offsets
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import dash_table
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # =============================================================================
 # Div Uploader
@@ -154,6 +154,7 @@ main_panel_upload_save_panel = html.Div([
                     width=10), justify='end'),
     ])
 
+# Hidden datatable for storing data
 main_panel_hidden_storage = html.Div([
     dcc.Store(id='data-table'),
     dcc.Store(id='new-data-data-table'),  
@@ -176,7 +177,6 @@ main_panel = html.Div([
         id = 'main-panel',
         children = [
             dbc.CardBody([    
-                # Hidden datatable for storing data
                 main_panel_hidden_storage,
                 main_panel_fsym_id_selection,
                 main_panel_core_functionalities,
@@ -188,7 +188,9 @@ main_panel = html.Div([
 
 def div_uploader():
    return html.Div([
-        main_panel,
+       dbc.Alert('No data to be checked for the current selection.', 
+                 id='no-overall-data-msg', color="warning", is_open=False),
+       main_panel,
        ], id='uploader')
 
 
@@ -332,8 +334,7 @@ editor_upload_save_panel = html.Div([
         width=2), justify='end'),
     dbc.Row(html.Br()),
     dbc.Row(dbc.Col(dbc.Alert(id="save-modified-msg", color="info", 
-                              is_open=False, duration=1200)),
-            justify='end')
+                              is_open=False, duration=1500)))
     ])
 
 editor_collapsible_component = dbc.Collapse(dbc.Card(
@@ -398,10 +399,10 @@ data_view_type_selection = html.Div(
 date_selection = dcc.DatePickerSingle(
     id='div-date-picker',
     min_date_allowed=date(2010, 8, 30),
-    max_date_allowed=(datetime.today() + offsets.MonthEnd(0)),
-    date = date(2021, 11, 30),
-    # date=(datetime.today() + pd.offsets.MonthEnd(0)),
-    # disabled_days=,
+    max_date_allowed=(datetime.today() + offsets.MonthEnd(0) - timedelta(days=1)),
+    initial_visible_month=datetime.today(),
+    date=(date.today() + offsets.MonthEnd(0)).strftime('%Y-%m-%d'),
+    # disabled_days=[],
     # display_format='YYYYMMDD',
     clearable =True)
 
@@ -422,7 +423,8 @@ top_select_panel = dbc.Card(
         date_selection,
         html.Br(),
         html.Br(),
-
+        dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
+                  duration=4200, is_open=False)),
         html.Details([
             html.Summary('Customize path'),
             html.Div([
@@ -446,13 +448,13 @@ top_select_panel = dbc.Card(
         html.Hr(),
         data_view_type_selection,
         html.Br(),
-        dbc.Button(
-            children='Load data',
-            color="primary",
-            # disabled=True,
-            n_clicks=0,
-            id='load-data-button'
-        ),
+        # dbc.Button(
+        #     children='Load data',
+        #     color="primary",
+        #     # disabled=True,
+        #     n_clicks=0,
+        #     id='load-data-button'
+        # ),
     ]), className='mt-3')
 
 

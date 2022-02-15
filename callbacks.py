@@ -16,8 +16,6 @@ from typing import List, Tuple
 
 from bg_data_uploader import *
 
-import dash_bootstrap_components as dbc
-from layout import div_uploader
 
 def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     """
@@ -105,21 +103,21 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             Output('warning-end-dropdown', 'is_open'),
             Input('next-button', 'n_clicks'),
             Input('prev-button', 'n_clicks'),
-            Input('fsym-id-dropdown', 'value'),
+            State('fsym-id-dropdown', 'value'),
             State('view-type-radio', 'value'),
             State('view-type-list', 'data'))
     def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
         print('go_to_next_prev')
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
         lst = [row[view_type] for row in view_type_lst]
-        lst = list(set(lst))
-        if lst[-1] is None:
-            lst = lst[:-1]
-        print(lst)        
-        lst.sort()
+        lst = sorted(list(filter(None, lst)))
+        print(cur_fsym_id)        
+        # For giving a default value
+        if not cur_fsym_id:
+            return lst[0], '', False
         if not prev_clicks and not next_clicks:
             return no_update
-        if not cur_fsym_id:
+        if not cur_fsym_id in lst:
             return lst[0], '', False
         if prev_clicks or next_clicks:
             idx = lst.index(cur_fsym_id)-1 \
@@ -129,8 +127,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             if idx >= len(lst) or idx < 0:
                 end_dropdown_msg = f'This is the {beg_end_msg} Fsym Id.'
                 return no_update, end_dropdown_msg, True
-            return lst[idx], '', False
-        # return lst[idx-1], '', False    
+            return lst[idx], '', False 
     
     @app.callback(
         Output('modified-data-rows', 'style_data_conditional'),
@@ -198,6 +195,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
       Input('seclist-path', 'value'),
       )
     def check_path_validity(update_date, new_data_path=None, update_list_path=None):
+        if update_date is None: return no_update
         import_warning_msg_1 = ''
         import_warning_msg_2 = ''       
         
@@ -217,22 +215,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 import_warning_msg_2 = f'Error for seclist path: {e}. \nUsing default path.'
         
         f_date = update_date.replace('-','')
-        new_data_default_path = f'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet'
+        new_data_default_path = f"""\\bgndc\Analysts\Scheduled_Jobs\output\\new_dvd_data_{f_date}.parquet"""
         update_list_default_path = f'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv'
         return import_warning_msg_1, import_warning_msg_2,\
             div_path_valid, seclist_path_valid,\
             not div_path_valid and new_data_path, not seclist_path_valid and update_list_path,\
             new_data_default_path, update_list_default_path
                 
-    # @app.callback(
-    #   Output('path-warning-msg', 'children'),
-    #   Output('path-warning-msg', 'valid'),
-    #   Input('div-data-path', 'value'),
-    #   Input('seclist-path', 'value'),
-    #   )
-    # def submit_path(new_data_path=None, update_list_path=None): 
-    #     if nclicks == 0:
-    #         raise PreventUpdate
         
             
         
@@ -248,6 +237,10 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     #     if value is None:
     #         raise PreventUpdate
     #     return "Progress is {:.0f}%".format(float(fsc.get("progress")) * 100)
+    def last_day_of_month(date):
+        if date.month == 12:
+            return date.replace(day=31)
+        return date.replace(month=date.month+1, day=1) - timedelta(days=1)
 
     @app.callback(
         Output('data-table', 'data'),
@@ -260,6 +253,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('basic-info-data-table', 'data'),
         Output('factset-data-table', 'data'),
         Output('skipped-data-table', 'data'),
+        Output('no-file-warning-msg', 'children'),
+        Output('no-file-warning-msg', 'is_open'),
         # Output('factset-data-table', 'valid'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
@@ -285,14 +280,25 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
         # if update_date == "":
         #     update_date = monthend_date
+        if update_date is None: return no_update
         print(f'update_date:{update_date}')
-        f_date = update_date.replace('-','')
+        update_date = last_day_of_month(datetime.strptime(update_date, '%Y-%m-%d'))
+        print(update_date)
+        f_date = update_date.strftime('%Y-%m-%d').replace('-','')
         
-        new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
-        update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+        try:
+            new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
+            update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+        except Exception as e:
+            display_date = update_date.strftime('%Y-%m-%d')
+            import_warning_msg = f"""The file may not exist for {display_date}. 
+                                    Error for seclist path: {e}."""
+            return no_update, no_update, no_update, no_update, no_update,\
+                no_update, no_update, import_warning_msg, True
+
         if path_btn_clicks  > 0: 
             if not div_path_valid and not seclist_path_valid:
-                return dash.no_update
+                return no_update
             if div_path_valid:
                 new_data = pd.read_parquet(new_data_path)
             if seclist_path_valid:
@@ -302,21 +308,19 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
 
         # i=0
         (new_data, skipped, pro_rata, splits) = \
-            preprocess_bbg_data(new_data, update_list, index_flag, update_date)
+            preprocess_bbg_data(new_data, update_list, index_flag)
         
-        # set_progress((str(i + 1), str(total)))
         new_data = bbg_data_single_security(new_data)
-        # set_progress((str(i + 1), str(total)))
     
         skipped = process_skipped(skipped)
-        # set_progress((str(i + 1), str(total)))
         
         seclist = list(new_data['fsym_id'].unique()) + list(skipped['fsym_id'].unique())
         # total=8
         bg_div_data = load_bg_div_data(seclist)
         # set_progress((str(i + 1), str(total)))
         split_data = load_split_data(seclist)
-        # set_progress((str(i + 1), str(total)))
+        split_data['p_split_date'] = pd.to_datetime(split_data['p_split_date'], format='%Y-%m-%d').strftime("%Y-%m-%d")
+    # set_progress((str(i + 1), str(total)))
 
         basic_info_data = load_basic_info_data(seclist)
         # set_progress((str(i + 1), str(total)))
@@ -324,7 +328,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         factset_data = load_factset_data(seclist)
         if factset_data.shape[0] != 0:
             factset_data = factset_data_single_security(factset_data)
-
+            
+        
         # set_progress((str(i + 1), str(total)))
 
         (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
@@ -361,10 +366,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
                 split_data.to_dict('records'), basic_info_data.to_dict('records'),\
-                    factset_data.to_dict('records'), skipped.to_dict('records')
+                    factset_data.to_dict('records'), skipped.to_dict('records'),\
+                    no_update, no_update
                 # [{'name': i, 'id':i} for i in split_data.columns]
     
     @app.callback(
+        # Output()
         Output('new-data-data-table', 'data'),
         # Output('new-data-data-table', 'columns'),
         Output('fsym-id-dropdown', 'options'),
@@ -374,6 +381,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('modified-data-rows', 'columns'),
         Output('next-button', 'n_clicks'),
         Output('prev-button', 'n_clicks'),
+        Output('no-overall-data-msg', 'is_open'),
         Input('view-type-radio', 'value'),
         Input('data-table', 'data'),
         State('view-type-list', 'data'),
@@ -381,21 +389,22 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     def load_selected_data(selected_review_option, datatable, view_type_data, skipped):
         # df_selection = pd.DataFrame(view_type_data)
         print('load_selected_data')
+        display_option = {'display': 'none'}
         if view_type_data != 'skipped':
             df = pd.DataFrame(datatable)
         else:
             df = pd.DataFrame(skipped)
         # print(df)
-        selected_ids = list(set([row[selected_review_option] for row in view_type_data]))
+        if view_type_data is None:
+            return no_update, no_update, no_update, no_update, display_option,\
+                no_update, no_update, no_update, True
+            
+        selected_ids = [row[selected_review_option] for row in view_type_data]
 
         # selected_ids = df_selection[selected_review_option].unique() 
 
-        
-        if selected_ids[-1] is None:
-            selected_ids = selected_ids[:-1]
-        # if selected_ids[0] is None:
-        #     selected_ids = selected_ids[1:]
-        selected_ids = sorted(selected_ids)
+        print(selected_ids)
+        selected_ids = sorted(list(filter(None, selected_ids)))
         has_data = len(selected_ids) > 0
         if has_data:
             no_data_msg = ''
@@ -408,26 +417,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             fsym_id_dropdown_options = []
             selected_data = pd.DataFrame([])
             no_data_msg = f'There is no entry to be reviewed for {selected_review_option}'
-            display_option = {'display': 'none'}
         print(selected_data)
 
         return selected_data.to_dict('records'),\
            fsym_id_dropdown_options,\
            no_data_msg, not has_data, display_option,\
-            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns], 0, 0
+            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns], 0, 0, False
                        # [{'name': i, 'id':i} for i in selected_data.columns],\
-
-
-    @app.callback(
-        Output('load-data-button', 'children'),
-        # Output('main-panel', 'style'),
-        # Output('load-data-button', 'children'),
-        Input('load-data-button', 'n_clicks'))
-    def load_data_spinner(n_clicks):
-        if n_clicks:
-            return [dbc.Spinner(div_uploader(), size="sm"), " Loading..."]
-        else:
-            return no_update
         
     @app.callback(
         Output('fsym-id-data-table', 'data'),
@@ -454,19 +450,23 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # res = df[df['fsym_id'] == selected]
         # bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
         new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
+        
+        for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
+            for row in new_data_filtered:
+                row[col] = pd.to_datetime(row[col], format='%Y-%m-%d').strftime("%Y-%m-%d")
         # print(datatable)
         new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] if len(datatable) else []
         div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if len(div_datatable) else []
         split_selected = [row for row in split_datatable if row['fsym_id'] == selected]
-        print(split_datatable)
-        print( len(split_datatable) == 0)
+        print(pd.DataFrame(new_data_filtered))
+        
         split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if len(split_datatable) else []
         # if split_df.shape[0] != 0:
         #     split_df = split_df[split_df['fsym_id']==selected]
 
         return new_data_filtered, new_data_col,\
             div_selected, split_selected,\
-            split_cols, len(split_datatable) == 0,\
+        split_cols, len(split_datatable) != 0,\
             f'There is no split data for {selected}',\
                 {} if not split_datatable else  {'display': 'none'}
             
@@ -520,6 +520,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             comparison_msg = 'New Dividend Data'
             fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data, bg_div_df)
             if payment_exist_msg != '': comparison_msg = payment_exist_msg 
+        for col in ['exdate' , 'payment_date_bbg', 'payment_date_factset']:
+            comparison[col] = pd.to_datetime(comparison[col], format='%Y-%m-%d').strftime("%Y-%m-%d")
         return basic_info_str, comparison.to_dict('records'),\
             [{'name': i, 'id':i} for i in comparison.columns],\
                  fig, comparison_msg
@@ -593,9 +595,11 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             has_data = True
             warning_msg = ''
             df = pd.DataFrame(div_selected_datatable)
+            df['exdate'] = pd.to_datetime(df['exdate'], format='%Y-%m-%d').strftime("%Y-%m-%d")
             df.sort_values(by=['exdate'], ascending=False, inplace=True)
             fig = plot_generic_dividend_data(df)
             cols = [{'name': i, 'id':i} for i in df.columns]
+            
             df = df.to_dict('records')        
         return fig, df, cols, {'display': 'none'} if not has_data else {}, not has_data, warning_msg
     
@@ -646,9 +650,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # State('edit-data-table', 'data'))
     def filter_fysm_id_editor(selected):
         if modify_data.shape[0] == 0: return no_update
+        output_df = modify_data.copy()
+        for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
+            output_df[col] = pd.to_datetime(output_df[col], format='%Y-%m-%d').strftime("%Y-%m-%d")
+
         if selected == 'All':
-            return modify_data.to_dict('records')
-        return modify_data[modify_data['fsym_id'] == selected].to_dict('records')
+            return output_df.to_dict('records')
+        return output_df[output_df['fsym_id'] == selected].to_dict('records')
      
     @app.callback(
         Output('collapse-button', 'disabled'),
