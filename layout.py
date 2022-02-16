@@ -187,7 +187,8 @@ main_panel = html.Div([
     ], id='main-panel-div')
 
 def div_uploader():
-   return html.Div([
+   return html.Details([
+       html.Summary('Step 4: View data'),
        dbc.Alert('No data to be checked for the current selection.', 
                  id='no-overall-data-msg', color="warning", is_open=False),
        main_panel,
@@ -372,7 +373,8 @@ editor_collapsible_component = dbc.Collapse(dbc.Card(
     )
 
 def div_editor():
-    return html.Div([
+    return html.Details([
+        html.Summary([dcc.Markdown('Step 5: Edit selected data')]),
         edit_entry_button,
         editor_collapsible_component
         ])
@@ -420,33 +422,42 @@ top_select_panel = dbc.Card(
         html.Br(),
         dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
         html.Br(),
-        date_selection,
-        html.Br(),
-        html.Br(),
-        dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
-                  duration=4200, is_open=False)),
         html.Details([
-            html.Summary('Customize path'),
-            html.Div([
-                dbc.Label('Path for new dividend data'),
-                dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
-                html.Br(),
-                dbc.Label('Path for seclist'),
-                dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
-                dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
-                dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
-            
-                html.Br(),
-                dbc.Button(id="submit-path-button", n_clicks=0, 
-                           children='Submit path', color='success')
-                ]),]),
+            html.Summary(dcc.Markdown('##### Step 1: Select date and file path (optional)')),
+            date_selection,
+            html.Br(),
+            html.Br(),
+            dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
+                      duration=4200, is_open=False)),
+            html.Details([
+                html.Summary('Customize path'),
+                html.Div([
+                    dbc.Label('Path for new dividend data'),
+                    dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
+                    html.Br(),
+                    dbc.Label('Path for seclist'),
+                    dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
+                    dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
+                    dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
+                
+                    html.Br(),
+                    dbc.Button(id="submit-path-button", n_clicks=0, 
+                               children='Submit path', color='success')
+                    ]),],),
+            ], open=True),
 
         html.Br(),
-        dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
-        index_only_selection,
+        html.Details([
+            html.Summary(dcc.Markdown('#### Step 2: Select index numbers')),
+            dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
+            index_only_selection,
+            ]),
         # html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
         html.Hr(),
-        data_view_type_selection,
+        html.Details([
+            html.Summary('Step 3: Select which type of data to view.'),
+            data_view_type_selection,
+            ]),
         html.Br(),
         # dbc.Button(
         #     children='Load data',
