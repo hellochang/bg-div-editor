@@ -319,14 +319,14 @@ modified_data_history_table = dbc.Row(dbc.Col(dash_table.DataTable(
             # tooltip_duration=None
         )), justify='center')
 
-edit_entry_button = html.Div([
-    dbc.Button(
-        children="Show Editor",
-        id="collapse-button",
-        className="mb-3",
-        color="primary",
-        n_clicks=0)
-    ], className="d-grid gap-2", id='collapse-button-div')
+# edit_entry_button = html.Div([
+#     dbc.Button(
+#         children="Show Editor",
+#         id="collapse-button",
+#         className="mb-3",
+#         color="primary",
+#         n_clicks=0)
+#     ], className="d-grid gap-2", id='collapse-button-div')
 
 editor_upload_save_panel = html.Div([
     dbc.Row(dbc.Col(
@@ -338,19 +338,11 @@ editor_upload_save_panel = html.Div([
                               is_open=False, duration=1500)))
     ])
 
-editor_collapsible_component = dbc.Collapse(dbc.Card(
+editor_main_component = html.Div(dbc.Card(
         dbc.CardBody([
-        dbc.Row(dbc.Col(html.H3("Dividend Entry Editor")), justify='start'),
-        dbc.Row(html.Br()),
 
-        # Hidden datatable for storing data
-        html.Div([dash_table.DataTable(
-            id='edit-data-table',
-            # columns=[{'name': i, 'id':i} for i in modify_data.columns],
-            editable=True,
-            # data=modify_data.to_dict('records')
-        )], style= {'display': 'none'}),
-        
+
+
         # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
         dbc.Row(dbc.Col(dcc.Dropdown(
                     id="editor-fsym-id-dropdown",
@@ -368,15 +360,29 @@ editor_collapsible_component = dbc.Collapse(dbc.Card(
         
         ]),             
         className="w-85"),
-        id="collapse-editor",
-        is_open=False,
+        id="editor-main",
+        # is_open=True,
     )
 
 def div_editor():
     return html.Details([
         html.Summary([dcc.Markdown('Step 5: Edit selected data')]),
-        edit_entry_button,
-        editor_collapsible_component
+        
+        # Hidden datatable for storing data
+        html.Div([dash_table.DataTable(
+            id='edit-data-table',
+            # columns=[{'name': i, 'id':i} for i in modify_data.columns],
+            editable=True,
+            # data=modify_data.to_dict('records')
+        )], style= {'display': 'none'}),
+        
+
+        # edit_entry_button,
+        dbc.Row(dbc.Col(html.H3("Dividend Entry Editor")), justify='start'),
+        dbc.Row(html.Br()),
+        dbc.Alert("""Select "All modified secid added" from Step 4 to show editor""", 
+                  id="editor-open-msg", color="info", is_open=True),
+        editor_main_component
         ])
 
 

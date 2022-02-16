@@ -54,33 +54,38 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return new_data_comparison
 
     @app.callback(
-        Output("collapse-editor", "is_open"),
+        # Output("collapse-editor", "is_open"),
         # Output('edit-data-table', 'data'),
         Output('editor-fsym-id-dropdown', 'options'),
         Output('editor-fsym-id-dropdown', 'value'),
-        Input("collapse-button", "n_clicks"),
+        # Input("collapse-button", "n_clicks"),
         Input('modify-list', 'data'),
         Input('modify-switch', 'value'),
-        State("collapse-editor", "is_open"),
         State('new-data-data-table', 'data'),
         # running=[
         #     (Output("collapse-button", "disabled"), True, False),
         # ],
         # manager=long_callback_manager,
         )
-    def get_editor_data(n_clicks, modify_lst, is_switch_on, is_open, datatable):
+    def get_editor_data(modify_lst, is_switch_on, datatable):
         if not modify_lst: return no_update
         df = pd.DataFrame(datatable)
-        lst = [row['name'] for row in modify_lst]
+        lst = list(set([row['name'] for row in modify_lst]))
         global modify_data 
         modify_data = df[df['fsym_id'].isin(lst)]
-        fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id']]
-        # fsym_ids = [{"label": 'All', "value": 'All'}] + \
-        #[{"label": i, "value": i} for i in modify_data['fsym_id']]
-        if not is_switch_on: return False, fsym_ids , fsym_ids[0]['value']
-        if n_clicks:
-            return not is_open, fsym_ids , fsym_ids[0]['value']
-        return is_open, fsym_ids , fsym_ids[0]['value']
+        fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id'].unique()]
+        if not is_switch_on: return no_update, no_update
+        return fsym_ids , fsym_ids[0]['value']
+ 
+    @app.callback(
+        Output('editor-open-msg', 'is_open'),
+        Output('editor-main', 'style'),
+        Input('modify-switch', 'value'),
+        )   
+    def show_editor_info_msg(is_switch_on):
+        if not is_switch_on:
+            return True, {'display': 'none'}
+        return False, {}
     
     @app.callback(
             Output('modify-list', 'data'),
@@ -93,8 +98,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             return no_update
     
         modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
-        # print('update_modify_list')
-        # print(modify_list)
         return modify_list, True
                  
     @app.callback(
@@ -482,6 +485,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     def get_basic_info(new_data, bg_div_data, update_date, 
                        basic_info_datatable, factset_datatable):
         # print('get_basic_info')
+        if not new_data: return no_update
         new_data = pd.DataFrame(new_data)
         # print(new_data)
 
@@ -562,6 +566,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('bbg-graph', 'figure'),
         Input('fsym-id-data-table', 'data'))
     def plot_bbg(new_data):
+        if not new_data: return no_update
         new_data = pd.DataFrame(new_data)
         df = prepare_bbg_data(new_data)
         fig = plot_generic_dividend_data(df)
@@ -609,13 +614,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return output_df[output_df['fsym_id'] == selected].to_dict('records')
      
     @app.callback(
-        Output('collapse-button', 'disabled'),
+        # Output('collapse-button', 'disabled'),
         Output('modify-button', 'disabled'),
         Input('modify-switch', 'value'))
     def show_collapse_button(is_switch_on):
         if is_switch_on:
-            return False, True
-        return True, False
+            return True
+        return False
         
     @app.callback(
         Output('edit-data-table', 'data'),
@@ -657,15 +662,20 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
     @app.callback(
         Output('modified-data-rows', 'data'),
+        Input('modify-switch', 'value'),
         Input('output-data-table', 'data_previous'),
         State('output-data-table', 'data'),
         State('modified-data-rows', 'data'))
-    def update_modified_data_table(rows_prev, rows, modified_rows):
+    def update_modified_data_table(is_switch_on, rows_prev, rows, modified_rows):
         print('update_modified_data_table________________')
         print(rows)
         print(rows_prev)
         print(pd.DataFrame(rows))
         print(pd.DataFrame(rows_prev))
+        changed_id = [p['prop_id'] for p in callback_context.triggered][0]
+        print(changed_id)
+        if 'modify-switch.value' == changed_id:
+            return []
         if rows == None and rows_prev == None:
             return no_update
         # len_rows = len(rows) if rows is not None else 0
@@ -717,6 +727,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             df = df.astype(datatypes)
             # print(df.dtypes)
             df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+            df.reset_index(inplace=True, drop=True)
             df.to_csv('not_edited_data')
             return 'Data saved to DB', True
     
@@ -735,5 +746,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             print(df)
             # print(df.dtypes)
             df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
+            df.reset_index(inplace=True, drop=True)
             df.to_csv('edited_div_data')
             return 'Data saved to DB', True
