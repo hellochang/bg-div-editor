@@ -21,7 +21,19 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     """
     Registers the callbacks to the app
     """
-
+    debug_mode = True
+    def print_callback(debug_mode):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                if debug_mode:
+                    print(f"==== Function called: {func.__name__}")
+                    print(f"Triggered by {callback_context.triggered[0]['prop_id']}")
+                    print(func)
+                result = func(*args, **kwargs)
+                return result
+            return wrapper
+        return decorator
+    
     def compare_new_data_with_factset(secid, update_date, bbg, factset, check_exist):
         # if factset is None:
         #     factset = factset_new_data(secid, last_exdate)
@@ -67,13 +79,18 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # ],
         # manager=long_callback_manager,
         )
+    @print_callback(debug_mode)
     def get_editor_data(modify_lst, is_switch_on, datatable):
         if not modify_lst: return no_update
         df = pd.DataFrame(datatable)
         lst = list(set([row['name'] for row in modify_lst]))
+        lst.sort()
+        print('get_editor_data')
+        print(lst)
         global modify_data 
         modify_data = df[df['fsym_id'].isin(lst)]
-        fsym_ids = [{"label": i, "value": i} for i in modify_data['fsym_id'].unique()]
+        print(modify_data)
+        fsym_ids = [{"label": i, "value": i} for i in lst]
         if not is_switch_on: return no_update, no_update
         return fsym_ids , fsym_ids[0]['value']
  
@@ -93,7 +110,10 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             Input('modify-button', 'n_clicks'),
             State('fsym-id-dropdown', 'value'),
             State('modify-list', 'data'))
+    @print_callback(debug_mode)
     def update_modify_list(n_clicks, cur_fsym_id, modify_list):
+        print('update_modify_list')
+        print(cur_fsym_id)
         if not n_clicks:
             return no_update
     
@@ -110,11 +130,11 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             State('view-type-radio', 'value'),
             State('view-type-list', 'data'))
     def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
-        print('go_to_next_prev')
+        # print('go_to_next_prev')
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
         lst = [row[view_type] for row in view_type_lst]
         lst = sorted(list(filter(None, lst)))
-        print(cur_fsym_id)        
+        # print(cur_fsym_id)        
         # For giving a default value
         if not cur_fsym_id:
             return lst[0], '', False
@@ -281,9 +301,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                           new_data_path, update_list_path,
                           div_path_valid, seclist_path_valid
                           ):
-        # monthend_date = (datetime.today() + pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d')
-        # if update_date == "":
-        #     update_date = monthend_date
         if update_date is None: return no_update
         print(f'update_date:{update_date}')
         update_date = last_day_of_month(datetime.strptime(update_date, '%Y-%m-%d'))
@@ -311,7 +328,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         print('load_data_to_dash')
 
         # i=0
-        (new_data, skipped, pro_rata, splits) = \
+        (new_data, skipped, pro_rata) = \
             preprocess_bbg_data(new_data, update_list, index_flag)
         
         new_data = bbg_data_single_security(new_data)
@@ -319,26 +336,20 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         skipped = process_skipped(skipped)
         
         seclist = list(new_data['fsym_id'].unique()) + list(skipped['fsym_id'].unique())
-        # total=8
         bg_div_data = load_bg_div_data(seclist)
-        # set_progress((str(i + 1), str(total)))
         split_data = load_split_data(seclist)
         split_data['p_split_date'] = pd.DatetimeIndex(split_data['p_split_date']).strftime("%Y-%m-%d")
-    # set_progress((str(i + 1), str(total)))
 
         basic_info_data = load_basic_info_data(seclist)
-        # set_progress((str(i + 1), str(total)))
         
         factset_data = load_factset_data(seclist)
+        
         if factset_data.shape[0] != 0:
             factset_data = factset_data_single_security(factset_data)
             
-        
-        # set_progress((str(i + 1), str(total)))
-
         (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
-        new_data = pd.concat([new_data, skipped])
-        print(new_data)
+        # new_data = pd.concat([new_data, skipped])
+        # print(new_data)
         # set_progress((str(i + 1), str(total)))
      
         # print(new_data.dtypes)
@@ -365,7 +376,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             'skipped': pd.Series(skipped_lst)})
         # print('after view_type_ids')
         new_data.to_csv('new_data_processed')
+        skipped.to_csv('skipped_processed')
         # print(dropdown_options)
+        print(skipped)
         return new_data.to_dict('records'),\
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
@@ -394,11 +407,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # df_selection = pd.DataFrame(view_type_data)
         print('load_selected_data')
         display_option = {'display': 'none'}
-        if view_type_data != 'skipped':
+        print(selected_review_option)
+        if selected_review_option != 'skipped':
             df = pd.DataFrame(datatable)
         else:
             df = pd.DataFrame(skipped)
-        # print(df)
+        print(df)
         if view_type_data is None:
             return no_update, no_update, no_update, no_update, display_option,\
                 no_update, no_update, no_update, True
@@ -410,8 +424,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         if has_data:
             no_data_msg = ''
             fsym_id_dropdown_options = [{"label": i, "value": i} 
-                                        for i in selected_ids] 
-
+                                        for i in selected_ids]
             selected_data = df[df['fsym_id'].isin(selected_ids)]
             display_option = {}
         else:
@@ -441,19 +454,18 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('split-db-data-table', 'data'))
     def filter_fysm_id_data(selected, datatable, div_datatable, split_datatable):
         if datatable is None: return no_update
-        # df = pd.DataFrame(datatable)
-        # bg_div_df = pd.DataFrame(div_datatable)
-        # split_df = pd.DataFrame(split_datatable)
         print('filter_fysm_id_data')
         # print(bg_div_df)
         # print(split_df)
         # res = df[df['fsym_id'] == selected]
+        print(pd.DataFrame(datatable))
         # bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
         new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
-        
+        # print(pd.DataFrame(new_data_filtered))
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             for row in new_data_filtered:
-                row[col] = pd.to_datetime(row[col], format='%Y-%m-%d').strftime("%Y-%m-%d")
+                row[col] = pd.to_datetime(row[col], format='%Y-%m-%d')\
+                    .strftime("%Y-%m-%d") if row[col] else row[col]
         # print(datatable)
         new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] if len(datatable) else []
         div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if len(div_datatable) else []
@@ -461,8 +473,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         print(pd.DataFrame(new_data_filtered))
         
         split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if len(split_datatable) else []
-        # if split_df.shape[0] != 0:
-        #     split_df = split_df[split_df['fsym_id']==selected]
 
         return new_data_filtered, new_data_col,\
             div_selected, split_selected,\
@@ -545,7 +555,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('factset-warning-msg', 'is_open'),
         Output('factset-warning-msg', 'children'),
         Input('fsym-id-data-table', 'data'),
-        State('div-selected-data-table', 'data'))
+        Input('div-selected-data-table', 'data'))
     def plot_comparison(new_data, div_selected_datatable):
         bbg = pd.DataFrame(new_data)
         bg = pd.DataFrame(div_selected_datatable)
@@ -602,10 +612,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     @app.callback(
         Output('output-data-table', 'data'),
         Input('editor-fsym-id-dropdown', 'value'))
-        # State('edit-data-table', 'data'))
+    # State('edit-data-table', 'data'))
+    @print_callback(debug_mode)
     def filter_fysm_id_editor(selected):
+        print('filter_fysm_id_editor')
         if modify_data.shape[0] == 0: return no_update
         output_df = modify_data.copy()
+        print(output_df)
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             output_df[col] = pd.DatetimeIndex(output_df[col]).strftime("%Y-%m-%d")
 
@@ -628,6 +641,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('modified-data-rows', 'data_previous'),
         State('editor-fsym-id-dropdown', 'value'),
         State('output-data-table', 'data'))
+    @print_callback(debug_mode)
     def update_changed_data_table(rows, rows_prev, fsym_id, modified_datatable):
         if rows is None: return no_update
         global modify_data
@@ -636,8 +650,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         print('update_changed_data_table: ____________')
         print('modified_df: ')
         print(pd.DataFrame(modified_df))
+        print(modify_data)
         modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
-        # print(modify_data)
         # df[df['fsym_id'] == fsym_id] = modified_df
         modify_data = pd.concat([modify_data, modified_df])
     
@@ -646,18 +660,17 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         undo_delete_row = [row for row in rows_prev if row not in rows] if \
             (rows is not None and rows_prev is not None) and \
                 len(rows_prev) > len(rows) else []
-        print('rows')
-        print(pd.DataFrame(rows))
-        print('rows_prev')
-        print(pd.DataFrame(rows_prev))
+        print(modify_data)
+        # print('rows')
+        # print(pd.DataFrame(rows))
+        # print('rows_prev')
+        # print(pd.DataFrame(rows_prev))
         # print('undo_delete_row:')
         # print(pd.DataFrame(undo_delete_row))
         # res  = res +  undo_delete_row if undo_delete_row is not None else res
         # pd.DataFrame(undo_delete_row).drop(columns=['action'], inplace=True)
         modify_data = pd.concat([modify_data, pd.DataFrame(undo_delete_row)])
-        # print('update_changed_data_table:')
-        # print(modify_data)
-        # i=i+1
+      
         return res
     
     @app.callback(
@@ -666,14 +679,15 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Input('output-data-table', 'data_previous'),
         State('output-data-table', 'data'),
         State('modified-data-rows', 'data'))
+    @print_callback(debug_mode)
     def update_modified_data_table(is_switch_on, rows_prev, rows, modified_rows):
         print('update_modified_data_table________________')
-        print(rows)
-        print(rows_prev)
-        print(pd.DataFrame(rows))
-        print(pd.DataFrame(rows_prev))
+        # print(rows)
+        # print(rows_prev)
+        # print(pd.DataFrame(rows))
+        # print(pd.DataFrame(rows_prev))
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]
-        print(changed_id)
+        # print(changed_id)
         if 'modify-switch.value' == changed_id:
             return []
         if rows == None and rows_prev == None:
