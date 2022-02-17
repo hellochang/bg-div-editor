@@ -11,9 +11,11 @@ import dash_bootstrap_components as dbc
 from dash import dash_table
 from datetime import date, datetime, timedelta
 
+
 # =============================================================================
 # Div Uploader (Step 4)
 # =============================================================================
+
 factset_card = [
     dbc.CardHeader('Factset'),
     dbc.CardBody(
@@ -107,7 +109,6 @@ basic_info_panel = dbc.Card(
     dbc.CardBody([
         html.Br(),
         dbc.Row(dbc.Col(dcc.Markdown(id="basic-info")), justify='center'),
-        # dbc.Row(dbc.Col(dbc.Label('Comparison table')), justify='center'),
         html.Div(id='payment-exist-msg'), 
         html.Br(),
         html.Div([
@@ -198,7 +199,27 @@ def div_uploader():
 # Div Editor (Step 5)
 # =============================================================================
 
-def highlight_special_row(special_color, skipped_color, suspension_color):
+def highlight_special_row(special_color: str, 
+                          skipped_color: str, suspension_color: str):
+    """
+    Highlight the suspension, skipped, and div initiation
+    rows in the given color
+
+    Parameters
+    ----------
+    special_color : str
+        Color code to highlight div initiation rows.
+    skipped_colo : str
+        Color code to highlight skipped rows.
+    suspension_color : str
+        Color code to highlight suspension rows.
+
+    Returns
+    -------
+    List
+        List of query for highlighting Dash Datatable.
+
+    """
     return [{
             'if': {
                 'filter_query': f'{{div_type}} = {case}',
@@ -206,7 +227,8 @@ def highlight_special_row(special_color, skipped_color, suspension_color):
             'backgroundColor': color,
             'color': 'white'
         } for case, color in zip(['special', 'skipped', 'suspension'], 
-                                 [special_color, skipped_color, suspension_color])
+                                 [special_color, skipped_color,
+                                  suspension_color])
         ] + \
         [{
             'if': {
@@ -318,15 +340,6 @@ modified_data_history_table = dbc.Row(dbc.Col(dash_table.DataTable(
             # tooltip_duration=None
         )), justify='center')
 
-# edit_entry_button = html.Div([
-#     dbc.Button(
-#         children="Show Editor",
-#         id="collapse-button",
-#         className="mb-3",
-#         color="primary",
-#         n_clicks=0)
-#     ], className="d-grid gap-2", id='collapse-button-div')
-
 editor_upload_save_panel = html.Div([
     dbc.Row(dbc.Col(
         dbc.Button(id="upload-modified-button", n_clicks=0, 
@@ -365,13 +378,10 @@ def div_editor():
         # Hidden datatable for storing data
         html.Div([dash_table.DataTable(
             id='edit-data-table',
-            # columns=[{'name': i, 'id':i} for i in modify_data.columns],
             editable=True,
-            # data=modify_data.to_dict('records')
         )], style= {'display': 'none'}),
         
 
-        # edit_entry_button,
         # dbc.Row(dbc.Col(html.H3("Dividend Entry Editor")), justify='start'),
         dbc.Row(html.Br()),
         dbc.Alert("""Select "All modified secid added" from Step 4 to show editor""", 
@@ -394,7 +404,7 @@ data_view_type_selection = html.Div(
                 {'label': 'All Goods', 'value': 'all_goods'},
                 {'label': 'Mismatched', 'value': 'mismatch'},
                 {'label': 'Skipped', 'value': 'skipped'}
-                ], value='skipped', inline=True)
+                ], value='mismatch', inline=True)
         ]
     )
 
@@ -403,8 +413,7 @@ date_selection = dcc.DatePickerSingle(
     min_date_allowed=date(2010, 8, 30),
     max_date_allowed=(datetime.today() + offsets.MonthEnd(0) - timedelta(days=1)),
     initial_visible_month=datetime.today(),
-    # date=(date.today() + offsets.MonthEnd(0)).strftime('%Y-%m-%d'),
-    date=date(2022,1,31),
+    date=(date.today() + offsets.MonthEnd(0)).strftime('%Y-%m-%d'),
     # disabled_days=[],
     # display_format='YYYYMMDD',
     clearable =True)
@@ -426,7 +435,6 @@ customize_path_widget = html.Details([
                    children='Submit path', color='success')
         ]),],) 
 
-
 step_1_date_and_file_selection = html.Details([
     html.Br(),
     html.Summary(html.I('Step 1: Select date and file path (optional)')),
@@ -435,12 +443,6 @@ step_1_date_and_file_selection = html.Details([
     dbc.Row([dbc.Col(date_selection),
              dbc.Col(customize_path_widget)], justify="evenly")            
     
-    # date_selection,
-    # html.Br(),
-    # html.Br(),
-    # dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
-    #           duration=4200, is_open=False, fade=True)),
-    # customize_path_widget,
     ], open=True)
 
 step_2_index_only_selection = html.Details([
@@ -460,6 +462,7 @@ step_3_view_type_selection = html.Details([
     html.Summary(html.I('Step 3: Select which type of data to view.')),
     data_view_type_selection,
     ], open=True)
+
 
 # =============================================================================
 # App Layout

@@ -21,27 +21,37 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     """
     Registers the callbacks to the app
     """
-    debug_mode = True
-    def print_callback(debug_mode):
+    
+    debug_mode = False
+    def print_callback(debug_mode: bool):
+        """
+        Function that prints callback to help debugging
+
+        Parameters
+        ----------
+        debug_mode : Bool
+            True for debugging mode.
+
+        Returns
+        -------
+        None
+
+        """
         def decorator(func):
             def wrapper(*args, **kwargs):
                 if debug_mode:
                     print(f"==== Function called: {func.__name__}")
                     print(f"Triggered by {callback_context.triggered[0]['prop_id']}")
-                    print(func)
                 result = func(*args, **kwargs)
                 return result
             return wrapper
         return decorator
     
-    def compare_new_data_with_factset(secid, update_date, bbg, factset, check_exist):
-        # if factset is None:
-        #     factset = factset_new_data(secid, last_exdate)
+    def compare_new_data_with_factset(secid: str, update_date, bbg,
+                                      factset, check_exist):
         if check_exist:
-            factset = factset[factset['exdate'] <= update_date]##TODO inorporate into laod_data step
-        # print('compare_new_data_with_factset')
-        # print(factset)
-        # print(bbg)
+            factset = factset[factset['exdate'] <= update_date] 
+            ##TODO inorporate into laod_data step
         factset = factset.copy()
         bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
         factset['exdate'] = pd.to_datetime(factset['exdate'], format='%Y-%m-%d')
@@ -66,18 +76,11 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return new_data_comparison
 
     @app.callback(
-        # Output("collapse-editor", "is_open"),
-        # Output('edit-data-table', 'data'),
         Output('editor-fsym-id-dropdown', 'options'),
         Output('editor-fsym-id-dropdown', 'value'),
-        # Input("collapse-button", "n_clicks"),
         Input('modify-list', 'data'),
         Input('modify-switch', 'value'),
         State('new-data-data-table', 'data'),
-        # running=[
-        #     (Output("collapse-button", "disabled"), True, False),
-        # ],
-        # manager=long_callback_manager,
         )
     @print_callback(debug_mode)
     def get_editor_data(modify_lst, is_switch_on, datatable):
@@ -129,12 +132,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             State('fsym-id-dropdown', 'value'),
             State('view-type-radio', 'value'),
             State('view-type-list', 'data'))
-    def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id, view_type, view_type_lst):
-        # print('go_to_next_prev')
+    def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id,
+                        view_type, view_type_lst):
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
         lst = [row[view_type] for row in view_type_lst]
         lst = sorted(list(filter(None, lst)))
-        # print(cur_fsym_id)        
+
         # For giving a default value
         if not cur_fsym_id:
             return lst[0], '', False
@@ -201,9 +204,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                         lst_idx = lst_idx + [idx, idx+1]
                         lst_changed_cell = lst_changed_cell + [col, col]
         return lst_idx, lst_changed_cell   
-  
-    
-  
     
     @app.callback(
       Output('path-warning-msg1', 'children'),
@@ -218,7 +218,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
       Input('div-data-path', 'value'),
       Input('seclist-path', 'value'),
       )
-    def check_path_validity(update_date, new_data_path=None, update_list_path=None):
+    def check_path_validity(update_date, new_data_path=None, 
+                            update_list_path=None):
         if update_date is None: return no_update
         import_warning_msg_1 = ''
         import_warning_msg_2 = ''       
@@ -230,56 +231,54 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 new_data = pd.read_parquet(new_data_path)
                 div_path_valid = True
             except Exception as e:
-                import_warning_msg_1 = f'Error for new dvd path: {e}. \nUsing default path.'
+                import_warning_msg_1 = f"""Error for new dvd path: {e}.
+                                            Using default path."""
         if update_list_path:
             try:
                 update_list = pd.read_csv(update_list_path)
                 seclist_path_valid = True
             except Exception as e:
-                import_warning_msg_2 = f'Error for seclist path: {e}. \nUsing default path.'
+                import_warning_msg_2 = f"""Error for seclist path: {e}.
+                                            Using default path."""
         
         f_date = update_date.replace('-','')
         new_data_default_path = f"""\\bgndc\Analysts\Scheduled_Jobs\output\\new_dvd_data_{f_date}.parquet"""
-        update_list_default_path = f'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv'
+        update_list_default_path = f"""\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv"""
         return import_warning_msg_1, import_warning_msg_2,\
             div_path_valid, seclist_path_valid,\
-            not div_path_valid and new_data_path, not seclist_path_valid and update_list_path,\
+            not div_path_valid and new_data_path,\
+            not seclist_path_valid and update_list_path,\
             new_data_default_path, update_list_default_path
                 
-        
-            
-        
-    
-    # fsc = FileSystemCache("cache_dir")
-    # fsc.set("progress", None)
-        
-       
+    def last_day_of_month(date: datetime) -> datetime:
+        """
+        Get the last day of the month of a given date
 
-    # @app.callback(Output("progress", "children"), Trigger("interval", "n_intervals"))
-    # def update_progress():
-    #     value = fsc.get("progress")  # get progress
-    #     if value is None:
-    #         raise PreventUpdate
-    #     return "Progress is {:.0f}%".format(float(fsc.get("progress")) * 100)
-    def last_day_of_month(date):
+        Parameters
+        ----------
+        date : datetime
+            A given date that may or may not be the last day of the month.
+
+        Returns
+        -------
+        datetime
+            The last day of the month.
+
+        """
         if date.month == 12:
             return date.replace(day=31)
         return date.replace(month=date.month+1, day=1) - timedelta(days=1)
 
     @app.callback(
         Output('data-table', 'data'),
-        # Output('data-table', 'columns'),
         Output('view-type-list', 'data'),
-        # Output('progress-div', 'style'),
         Output('bg-div-data-table', 'data'),
-        # Output('bg-div-data-table', 'columns'),
         Output('split-db-data-table', 'data'),
         Output('basic-info-data-table', 'data'),
         Output('factset-data-table', 'data'),
         Output('skipped-data-table', 'data'),
         Output('no-file-warning-msg', 'children'),
         Output('no-file-warning-msg', 'is_open'),
-        # Output('factset-data-table', 'valid'),
         Input('div-date-picker', 'date'), 
         Input('index-only-radio', 'value'),
         Input('submit-path-button', 'n_clicks'),
@@ -287,14 +286,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('seclist-path', 'value'),
         State('div-data-path', 'valid'),
         State('seclist-path', 'valid'),
-        # running=[
-        #     (Output("div-date-picker", "disabled"), True, False),
-        #     (Output("collapse-button-div", "style"), {'display': 'none'}, {}),
-        #     (Output("main-panel-div", "style"), {'display': 'none'}, {}),
-        #     (Output("view-type-div", "style"), {'display': 'none'}, {}),
-        # ],
-        # manager=long_callback_manager,
-        # progress=[Output("progress_bar", "value"), Output("progress_bar", "max")],
     )
     # @functools.lru_cache(maxsize=5)
     def load_data_to_dash(update_date, index_flag, path_btn_clicks,
@@ -302,14 +293,13 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                           div_path_valid, seclist_path_valid
                           ):
         if update_date is None: return no_update
-        print(f'update_date:{update_date}')
         update_date = last_day_of_month(datetime.strptime(update_date, '%Y-%m-%d'))
-        print(update_date)
         f_date = update_date.strftime('%Y-%m-%d').replace('-','')
-        
+        new_data_path = rf"""\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet"""
+        update_list_path = rf"""\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv"""
         try:
-            new_data = pd.read_parquet(rf'\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet')
-            update_list = pd.read_csv(rf'\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv')
+            new_data = pd.read_parquet(new_data_path)
+            update_list = pd.read_csv(update_list_path)
         except Exception as e:
             display_date = update_date.strftime('%Y-%m-%d')
             import_warning_msg = f"""The file may not exist for {display_date}. 
@@ -324,10 +314,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 new_data = pd.read_parquet(new_data_path)
             if seclist_path_valid:
                 update_list = pd.read_csv(update_list_path)
-                
-        print('load_data_to_dash')
 
-        # i=0
         (new_data, skipped, pro_rata) = \
             preprocess_bbg_data(new_data, update_list, index_flag)
         
@@ -335,10 +322,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
         skipped = process_skipped(skipped)
         
-        seclist = list(new_data['fsym_id'].unique()) + list(skipped['fsym_id'].unique())
+        seclist = list(new_data['fsym_id'].unique()) +\
+            list(skipped['fsym_id'].unique())
         bg_div_data = load_bg_div_data(seclist)
         split_data = load_split_data(seclist)
-        split_data['p_split_date'] = pd.DatetimeIndex(split_data['p_split_date']).strftime("%Y-%m-%d")
+        split_data['p_split_date'] = pd.DatetimeIndex(
+            split_data['p_split_date']).strftime("%Y-%m-%d")
 
         basic_info_data = load_basic_info_data(seclist)
         
@@ -348,49 +337,34 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             factset_data = factset_data_single_security(factset_data)
             
         (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
-        # new_data = pd.concat([new_data, skipped])
-        # print(new_data)
-        # set_progress((str(i + 1), str(total)))
-     
-        # print(new_data.dtypes)
-        # print('Loaded')
-        # print(all_goods)
-        # print(manual_list)
-        # print(skipped)
+        if all_goods is not None:
+            all_goods_lst = sorted(all_goods['fsym_id'].to_list())
+        else: all_goods_lst = []
         
-        all_goods_lst = sorted(all_goods['fsym_id'].to_list()) if all_goods is not None else []
-        mismatch_lst = sorted(manual_list) if manual_list is not None else []
-        skipped_lst = sorted(skipped['fsym_id'].unique()) if skipped is not None else []
-        # print(all_goods_lst)
-        # print(mismatch_lst)
-        # print(skipped_lst)
-      
+        if manual_list is not None:
+            mismatch_lst = sorted(manual_list) 
+        else: mismatch_lst = []
+        
+        if skipped is not None:
+            skipped_lst = sorted(skipped['fsym_id'].unique())
+        else: skipped_lst = []
         # fysm_id_lst = [*all_goods_lst, *mismatch_lst, *skipped_lst]
-        # print(fysm_id_lst)
-        # print('after lst')
 
-        # print(factset_data)
         view_type_ids = pd.DataFrame({
             'all_goods': pd.Series(all_goods_lst),
             'mismatch': pd.Series(mismatch_lst),   
             'skipped': pd.Series(skipped_lst)})
-        # print('after view_type_ids')
         new_data.to_csv('new_data_processed')
         skipped.to_csv('skipped_processed')
-        # print(dropdown_options)
-        print(skipped)
         return new_data.to_dict('records'),\
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
                 split_data.to_dict('records'), basic_info_data.to_dict('records'),\
                     factset_data.to_dict('records'), skipped.to_dict('records'),\
                     no_update, no_update
-                # [{'name': i, 'id':i} for i in split_data.columns]
     
     @app.callback(
-        # Output()
         Output('new-data-data-table', 'data'),
-        # Output('new-data-data-table', 'columns'),
         Output('fsym-id-dropdown', 'options'),
         Output('no-data-msg', 'children'),
         Output('no-data-msg', 'is_open'),
@@ -412,7 +386,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             df = pd.DataFrame(datatable)
         else:
             df = pd.DataFrame(skipped)
-        print(df)
         if view_type_data is None:
             return no_update, no_update, no_update, no_update, display_option,\
                 no_update, no_update, no_update, True
@@ -435,8 +408,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return selected_data.to_dict('records'),\
            fsym_id_dropdown_options,\
            no_data_msg, not has_data, display_option,\
-            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} for i in df.columns], 0, 0, False
-                       # [{'name': i, 'id':i} for i in selected_data.columns],\
+            [{'name': 'action', 'id':'action'}] + [{'name': i, 'id':i} 
+                                                   for i in df.columns],\
+                0, 0, False
         
     @app.callback(
         Output('fsym-id-data-table', 'data'),
@@ -444,7 +418,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('div-selected-data-table', 'data'),
         Output('split-selected-data-table', 'data'),
         Output('split-selected-data-table', 'columns'),
-        # Output('no-', 'is_open'),        
         Output('split-warning-msg', 'is_open'),
         Output('split-warning-msg', 'children'),
         Output('split-content', 'style'),
@@ -454,31 +427,29 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('split-db-data-table', 'data'))
     def filter_fysm_id_data(selected, datatable, div_datatable, split_datatable):
         if datatable is None: return no_update
-        print('filter_fysm_id_data')
-        # print(bg_div_df)
-        # print(split_df)
-        # res = df[df['fsym_id'] == selected]
-        print(pd.DataFrame(datatable))
-        # bg_div_df[bg_div_df['fsym_id']==selected] if bg_div_df.shape[0] != 0 else bg_div_df
         new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
-        # print(pd.DataFrame(new_data_filtered))
+        
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             for row in new_data_filtered:
                 row[col] = pd.to_datetime(row[col], format='%Y-%m-%d')\
                     .strftime("%Y-%m-%d") if row[col] else row[col]
-        # print(datatable)
-        new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()] if len(datatable) else []
-        div_selected = [row for row in div_datatable if row['fsym_id'] == selected] if len(div_datatable) else []
-        split_selected = [row for row in split_datatable if row['fsym_id'] == selected]
-        print(pd.DataFrame(new_data_filtered))
-        
-        split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()] if len(split_datatable) else []
+
+        new_data_col = [{'name': i, 'id':i} for i in datatable[0].keys()]\
+            if len(datatable) else []
+        div_selected = [row for row in div_datatable 
+                        if row['fsym_id'] == selected]\
+            if len(div_datatable) else []
+        split_selected = [row for row in split_datatable 
+                          if row['fsym_id'] == selected]\
+            if len(split_datatable) else []
+        split_cols = [{'name': i, 'id':i} for i in split_datatable[0].keys()]\
+            if len(split_datatable) else []
 
         return new_data_filtered, new_data_col,\
             div_selected, split_selected,\
-        split_cols, len(split_datatable) != 0,\
+        split_cols, not len(split_selected),\
             f'There is no split data for {selected}',\
-                {} if not split_datatable else  {'display': 'none'}
+                {} if len(split_selected) else  {'display': 'none'}
             
     @app.callback(
         Output('basic-info', 'children'),
@@ -494,22 +465,18 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         )
     def get_basic_info(new_data, bg_div_data, update_date, 
                        basic_info_datatable, factset_datatable):
-        # print('get_basic_info')
         if not new_data: return no_update
         new_data = pd.DataFrame(new_data)
-        # print(new_data)
 
         fsym_id = new_data['fsym_id'].values[0]
         bg_div_df = pd.DataFrame(bg_div_data)
         info_df = pd.DataFrame(basic_info_datatable)
-        # print(info_df)
 
         info_df = info_df[info_df['fsym_id']==fsym_id]
         factset_df = pd.DataFrame(factset_datatable)
-        # print(factset_df)
         if factset_df.shape[0] != 0:
             factset_df = factset_df[factset_df['fsym_id']==fsym_id]
-        # print(new_data.dtypes)
+
         check_exist = bg_div_df.shape[0] != 0
         basic_info_str = basic_info(fsym_id, info_df, new_data)
         payment_exist_msg = ''
@@ -520,7 +487,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                                                        check_exist)
             fig = plot_dividend_data_comparison(factset_df, new_data)
         else:
-            # last_exdate = last_payment_exdate(fsym_id, bg_div_df['exdate'])
             (last_cur, fstest_cur) = dividend_currency(new_data)
             comparison = compare_new_data_with_factset(fsym_id, update_date, 
                                                        new_data, factset_df, 
@@ -606,19 +572,16 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             fig = plot_generic_dividend_data(df)
             cols = [{'name': i, 'id':i} for i in df.columns]
             df = df.to_dict('records')        
-        return fig, df, cols, {'display': 'none'} if not has_data else {}, not has_data, warning_msg
+        return fig, df, cols, {'display': 'none'} if not has_data else {},\
+            not has_data, warning_msg
     
-
     @app.callback(
         Output('output-data-table', 'data'),
         Input('editor-fsym-id-dropdown', 'value'))
-    # State('edit-data-table', 'data'))
     @print_callback(debug_mode)
     def filter_fysm_id_editor(selected):
-        print('filter_fysm_id_editor')
         if modify_data.shape[0] == 0: return no_update
         output_df = modify_data.copy()
-        print(output_df)
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             output_df[col] = pd.DatetimeIndex(output_df[col]).strftime("%Y-%m-%d")
 
@@ -627,7 +590,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return output_df[output_df['fsym_id'] == selected].to_dict('records')
      
     @app.callback(
-        # Output('collapse-button', 'disabled'),
         Output('modify-button', 'disabled'),
         Input('modify-switch', 'value'))
     def show_collapse_button(is_switch_on):
@@ -647,12 +609,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         global modify_data
 
         modified_df = pd.DataFrame(modified_datatable) 
-        print('update_changed_data_table: ____________')
-        print('modified_df: ')
-        print(pd.DataFrame(modified_df))
-        print(modify_data)
         modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
-        # df[df['fsym_id'] == fsym_id] = modified_df
         modify_data = pd.concat([modify_data, modified_df])
     
         res = modify_data.to_dict('records')
@@ -660,17 +617,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         undo_delete_row = [row for row in rows_prev if row not in rows] if \
             (rows is not None and rows_prev is not None) and \
                 len(rows_prev) > len(rows) else []
-        print(modify_data)
-        # print('rows')
-        # print(pd.DataFrame(rows))
-        # print('rows_prev')
-        # print(pd.DataFrame(rows_prev))
-        # print('undo_delete_row:')
-        # print(pd.DataFrame(undo_delete_row))
         # res  = res +  undo_delete_row if undo_delete_row is not None else res
         # pd.DataFrame(undo_delete_row).drop(columns=['action'], inplace=True)
         modify_data = pd.concat([modify_data, pd.DataFrame(undo_delete_row)])
-      
         return res
     
     @app.callback(
@@ -681,38 +630,22 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('modified-data-rows', 'data'))
     @print_callback(debug_mode)
     def update_modified_data_table(is_switch_on, rows_prev, rows, modified_rows):
-        print('update_modified_data_table________________')
-        # print(rows)
-        # print(rows_prev)
-        # print(pd.DataFrame(rows))
-        # print(pd.DataFrame(rows_prev))
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]
-        # print(changed_id)
         if 'modify-switch.value' == changed_id:
             return []
         if rows == None and rows_prev == None:
             return no_update
-        # len_rows = len(rows) if rows is not None else 0
-        # len_rows_prev = len(rows_prev) if rows_prev is not None else 0
         if (len(rows) == len(rows_prev)):
 
-        # if len_rows == len_rows_prev:
             modified_rows = [i for i in rows if i not in rows_prev] \
                 if modified_rows is None \
                     else modified_rows + [i for i in rows if i not in rows_prev]
-            # if len(modified_rows) != 0:                
             modified_rows[-1]['action'] = 'update' 
             modified_rows= modified_rows + [i for i in rows_prev if i not in rows]
-            # if len(modified_rows) != 0:
             modified_rows[-1]['action'] = 'original'
-        print(pd.DataFrame(modified_rows))
-        # if len(rows) == 0:
-        # and (len(modified_rows) != 0)
             
         if (len(rows) < len(rows_prev)):
-        # if len_rows < len_rows_prev:
              modified_rows = modified_rows + [i for i in rows_prev if i not in rows]
-             # if len(modified_rows) != 0:
              modified_rows[-1]['action'] = 'delete'
     
         # Add index for modified data table    
@@ -720,7 +653,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         for row in modified_rows:
             row.update({'id': idx})
             idx = idx + 1
-        # print(pd.DataFrame(modified_rows))
         return modified_rows
 
     @app.callback(
@@ -735,11 +667,11 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         else:
             df = pd.DataFrame(modified_data)
             lst = [row['name'] for row in modify_lst]
-            # print(df)
             df = df[~(df['fsym_id'].isin(lst))]
             datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
             df = df.astype(datatypes)
-            # print(df.dtypes)
+            # for col in ['declared_date', 'exdate', 'payment_date', 'record_date']:
+            #     df[col] = pd.to_datetime(df[col], format='%Y-%m-%d')
             df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
             df.reset_index(inplace=True, drop=True)
             df.to_csv('not_edited_data')
@@ -757,8 +689,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             df = modify_data.copy()
             datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
             df = df.astype(datatypes)
-            print(df)
-            # print(df.dtypes)
+            for col in ['declared_date', 'exdate', 'payment_date', 'record_date']:
+                df[col] = pd.to_datetime(df[col], format='%Y-%m-%dT%H:%M:%S')
             df.sort_values(by=['fsym_id', 'exdate'], ascending=False)
             df.reset_index(inplace=True, drop=True)
             df.to_csv('edited_div_data')
