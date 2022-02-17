@@ -12,7 +12,7 @@ from dash import dash_table
 from datetime import date, datetime, timedelta
 
 # =============================================================================
-# Div Uploader
+# Div Uploader (Step 4)
 # =============================================================================
 factset_card = [
     dbc.CardHeader('Factset'),
@@ -22,7 +22,8 @@ factset_card = [
             html.Div([dcc.Graph(id='factset-graph'),
             ], id='facset-content'),
             html.Br(),
-            dbc.Alert(id="factset-warning-msg", color="info", is_open=False),            
+            dbc.Alert(id="factset-warning-msg", color="info",
+                      is_open=False, fade=True),            
         ]
     ),
 ]
@@ -38,7 +39,8 @@ bbg_card = [
             # )]),
             ], id='bbg-content'),
             html.Br(),
-            dbc.Alert(id="bbg-warning-msg", color="info", is_open=False),            
+            dbc.Alert(id="bbg-warning-msg", color="info", 
+                      is_open=False, fade=True),            
         ]
     ),
 ]  
@@ -64,7 +66,8 @@ bg_card = [
                     page_size=20)
                 ], id='bg-content'),
             html.Br(),
-            dbc.Alert(id="bg-db-warning-msg", color="info", is_open=False)
+            dbc.Alert(id="bg-db-warning-msg", color="info",
+                      is_open=False, fade=True)
         ]
     ),
 ]
@@ -78,7 +81,8 @@ split_card = [
                 dash_table.DataTable(id='split-selected-data-table')
                 ], id='split-content'),
             html.Br(),
-            dbc.Alert(id="split-warning-msg", color="info", is_open=False),
+            dbc.Alert(id="split-warning-msg", color="info",
+                      is_open=False, fade=True),
         ]
     ),
 ]
@@ -99,7 +103,7 @@ row_3 = dbc.Row(
 
 graphs_panel = html.Div([row_2, dbc.Row(dbc.Col(html.Br())), row_3])
 
-main_panel_core_functionalities = dbc.Card(
+basic_info_panel = dbc.Card(
     dbc.CardBody([
         html.Br(),
         dbc.Row(dbc.Col(dcc.Markdown(id="basic-info")), justify='center'),
@@ -107,7 +111,9 @@ main_panel_core_functionalities = dbc.Card(
         html.Div(id='payment-exist-msg'), 
         html.Br(),
         html.Div([
-            dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", color="info")), justify='center'),
+            dbc.Row(dbc.Col(dbc.Alert(id="comparison-msg", 
+                                      color="info", fade=True)),
+                    justify='center'),
             dash_table.DataTable(
                 id='comparison-data-table',
         )]),
@@ -116,16 +122,16 @@ main_panel_core_functionalities = dbc.Card(
 
         html.Br(),
         dcc.Graph(id='fsym-id-graph'),
-        graphs_panel
-        ])
-    )
+        ]),
+    color="dark", outline=True)
 
 main_panel_fsym_id_selection = html.Div([
     dbc.Row(dbc.Alert(id="add-to-editor-msg", 
                       children='Saved for modifying later',
-                      color="success", duration=500, is_open=False)),
+                      color="success", duration=500, 
+                      is_open=False, fade=True)),
     dbc.Row(dbc.Alert(id='warning-end-dropdown', color="warning",
-                      duration=700, is_open=False)),
+                      duration=700, is_open=False, fade=True)),
     dbc.Row([dbc.Col(dbc.Button(id="prev-button", n_clicks=0, children='Prev'), 
                      width=1),
              dbc.Col(dbc.Button(id="next-button", n_clicks=0, 
@@ -150,8 +156,8 @@ main_panel_upload_save_panel = html.Div([
                    children='Upload original to DB', color='success'), 
         width=2), justify='end'),
     dbc.Row(dbc.Col(dbc.Alert(id="save-msg", color="info", 
-                              is_open=False, duration=600),
-                    width=10), justify='end'),
+                              is_open=False, duration=600, fade=True)),
+            justify='end'),
     ])
 
 # Hidden datatable for storing data
@@ -159,44 +165,37 @@ main_panel_hidden_storage = html.Div([
     dcc.Store(id='data-table'),
     dcc.Store(id='new-data-data-table'),  
     dcc.Store(id='skipped-data-table'),
-     
+    
     dcc.Store(id='split-db-data-table'),        
-    # dcc.Store(id='split-selected-data-table'),        
-  
     dcc.Store(id='bg-div-data-table'),        
     dcc.Store(id='div-selected-data-table'),
     dcc.Store(id='basic-info-data-table'),
     dcc.Store(id='factset-data-table')
-    
-    
     ])
         
 main_panel = html.Div([
-    dbc.Alert(id="no-data-msg", color="info", is_open=False),
-    dbc.Card(
-        id = 'main-panel',
-        children = [
-            dbc.CardBody([    
-                main_panel_hidden_storage,
-                main_panel_fsym_id_selection,
-                main_panel_core_functionalities,
-                main_panel_upload_save_panel,   
-                html.Br()])
-            ]
-        )
-    ], id='main-panel-div')
+    main_panel_hidden_storage,
+    main_panel_fsym_id_selection,
+    basic_info_panel,
+    graphs_panel,
+    main_panel_upload_save_panel,   
+    html.Br()
+    ], id = 'main-panel')
 
 def div_uploader():
    return html.Details([
-       html.Summary('Step 4: View data'),
+       html.Summary(html.I('Step 4: View data')),
+       html.Br(),
        dbc.Alert('No data to be checked for the current selection.', 
-                 id='no-overall-data-msg', color="warning", is_open=False),
+                 id='no-overall-data-msg', color="warning", 
+                 is_open=False, fade=True),
+       dbc.Alert(id="no-data-msg", color="info", is_open=False, fade=True),
        main_panel,
        ], id='uploader')
 
 
 # =============================================================================
-# Div Editor
+# Div Editor (Step 5)
 # =============================================================================
 
 def highlight_special_row(special_color, skipped_color, suspension_color):
@@ -335,38 +334,33 @@ editor_upload_save_panel = html.Div([
         width=2), justify='end'),
     dbc.Row(html.Br()),
     dbc.Row(dbc.Col(dbc.Alert(id="save-modified-msg", color="info", 
-                              is_open=False, duration=1500)))
+                              is_open=False, duration=1500, fade=True)))
     ])
 
 editor_main_component = html.Div(dbc.Card(
         dbc.CardBody([
-
-
-
-        # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
-        dbc.Row(dbc.Col(dcc.Dropdown(
-                    id="editor-fsym-id-dropdown",
-                    # options=[{"label": 'All', "value": 'All'}] + 
-                    #[{"label": i, "value": i} for i in modify_data['fsym_id']],
-                )), justify='center'),
-        output_table,
-        
-        html.Br(),
-        html.Br(),  
-        dbc.Row(html.H3("Edit History"), justify='start'),
-        modified_data_history_table,
-        html.Br(),
-        editor_upload_save_panel
-        
+            html.Br(),
+            # dbc.Row(dbc.Col(dbc.Label('Select a fsym id'), width=10)),
+            dbc.Row(html.H5("Edit Entries"), justify='start'),
+            dbc.Row(dbc.Col(dcc.Dropdown(
+                        id="editor-fsym-id-dropdown",
+                    )), justify='center'),
+            output_table,
+            
+            html.Br(),
+            html.Br(),  
+            dbc.Row(html.H5("Edit History"), justify='start'),
+            modified_data_history_table,
+            html.Br(),
+            editor_upload_save_panel
+            
         ]),             
-        className="w-85"),
-        id="editor-main",
-        # is_open=True,
-    )
+        className="w-85", color="dark", outline=True),
+    id="editor-main")
 
 def div_editor():
     return html.Details([
-        html.Summary([dcc.Markdown('Step 5: Edit selected data')]),
+        html.Summary([html.I('Step 5: Edit selected data')]),
         
         # Hidden datatable for storing data
         html.Div([dash_table.DataTable(
@@ -378,16 +372,16 @@ def div_editor():
         
 
         # edit_entry_button,
-        dbc.Row(dbc.Col(html.H3("Dividend Entry Editor")), justify='start'),
+        # dbc.Row(dbc.Col(html.H3("Dividend Entry Editor")), justify='start'),
         dbc.Row(html.Br()),
         dbc.Alert("""Select "All modified secid added" from Step 4 to show editor""", 
-                  id="editor-open-msg", color="info", is_open=True),
+                  id="editor-open-msg", color="info", is_open=True, fade=True),
         editor_main_component
         ])
 
 
 # =============================================================================
-# Top select panel
+# Top select panel (Step 1 to Step 3)
 # =============================================================================
 
 data_view_type_selection = html.Div(
@@ -400,7 +394,7 @@ data_view_type_selection = html.Div(
                 {'label': 'All Goods', 'value': 'all_goods'},
                 {'label': 'Mismatched', 'value': 'mismatch'},
                 {'label': 'Skipped', 'value': 'skipped'}
-                ], value='mismatch', inline=True)
+                ], value='skipped', inline=True)
         ]
     )
 
@@ -409,85 +403,87 @@ date_selection = dcc.DatePickerSingle(
     min_date_allowed=date(2010, 8, 30),
     max_date_allowed=(datetime.today() + offsets.MonthEnd(0) - timedelta(days=1)),
     initial_visible_month=datetime.today(),
-    date=(date.today() + offsets.MonthEnd(0)).strftime('%Y-%m-%d'),
+    # date=(date.today() + offsets.MonthEnd(0)).strftime('%Y-%m-%d'),
+    date=date(2022,1,31),
     # disabled_days=[],
     # display_format='YYYYMMDD',
     clearable =True)
 
-index_only_selection = dbc.RadioItems(
-    id='index-only-radio',
-    options=[
-        {'label': 'Yes', 'value': True},
-        {'label': 'No', 'value': False}
-        ],
-    value=False,
-    labelStyle={'display': 'inline-block'})
+customize_path_widget = html.Details([
+    html.Summary('Customize path'),
+    html.Div([
+        dbc.Label('Path for new dividend data', style={'font-size': '15px'}),
+        dbc.Input(placeholder="Path for new dividend data", 
+                  type="text", id='div-data-path'),
+        html.Br(),
+        dbc.Label('Path for seclist'),
+        dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
+        dbc.Alert(id="path-warning-msg1", color="danger", is_open=False, fade=True),
+        dbc.Alert(id="path-warning-msg2", color="danger", is_open=False, fade=True),
+    
+        html.Br(),
+        dbc.Button(id="submit-path-button", n_clicks=0, 
+                   children='Submit path', color='success')
+        ]),],) 
 
-top_select_panel = dbc.Card(
-    dbc.CardBody([
-        html.Br(),
-        dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader", className="card-title"))),
-        html.Br(),
-        html.Details([
-            html.Summary(dcc.Markdown('##### Step 1: Select date and file path (optional)')),
-            date_selection,
-            html.Br(),
-            html.Br(),
-            dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
-                      duration=4200, is_open=False)),
-            html.Details([
-                html.Summary('Customize path'),
-                html.Div([
-                    dbc.Label('Path for new dividend data'),
-                    dbc.Input(placeholder="Path for new dividend data", type="text", id='div-data-path'),
-                    html.Br(),
-                    dbc.Label('Path for seclist'),
-                    dbc.Input(placeholder="Path for seclist", type="text", id='seclist-path'),
-                    dbc.Alert(id="path-warning-msg1", color="danger", is_open=False),
-                    dbc.Alert(id="path-warning-msg2", color="danger", is_open=False),
-                
-                    html.Br(),
-                    dbc.Button(id="submit-path-button", n_clicks=0, 
-                               children='Submit path', color='success')
-                    ]),],),
-            ], open=True),
 
-        html.Br(),
-        html.Details([
-            html.Summary(dcc.Markdown('#### Step 2: Select index numbers')),
-            dbc.Row(dbc.Col(dbc.Label('Getting index members only?'), width=10)),
-            index_only_selection,
-            ]),
-        # html.Div(id='progress-div', children=[html.Progress(id="progress_bar")]),
-        html.Hr(),
-        html.Details([
-            html.Summary('Step 3: Select which type of data to view.'),
-            data_view_type_selection,
-            ]),
-        html.Br(),
-        # dbc.Button(
-        #     children='Load data',
-        #     color="primary",
-        #     # disabled=True,
-        #     n_clicks=0,
-        #     id='load-data-button'
-        # ),
-    ]), className='mt-3')
+step_1_date_and_file_selection = html.Details([
+    html.Br(),
+    html.Summary(html.I('Step 1: Select date and file path (optional)')),
+    dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
+              duration=4200, is_open=False, fade=True)),
+    dbc.Row([dbc.Col(date_selection),
+             dbc.Col(customize_path_widget)], justify="evenly")            
+    
+    # date_selection,
+    # html.Br(),
+    # html.Br(),
+    # dbc.Row(dbc.Alert(id='no-file-warning-msg', color="warning",
+    #           duration=4200, is_open=False, fade=True)),
+    # customize_path_widget,
+    ], open=True)
 
+step_2_index_only_selection = html.Details([
+    html.Summary(html.I('Step 2: Select index numbers')),
+    dbc.Row(dbc.Col(dbc.Label('Getting index members only?'))),
+    dbc.Row(dbc.RadioItems(
+        id='index-only-radio',
+        options=[
+            {'label': 'Yes', 'value': True},
+            {'label': 'No', 'value': False}
+            ],
+        value=False,
+        labelStyle={'display': 'inline-block'}), justify="center"),
+    ], open=True)
+
+step_3_view_type_selection = html.Details([
+    html.Summary(html.I('Step 3: Select which type of data to view.')),
+    data_view_type_selection,
+    ], open=True)
 
 # =============================================================================
 # App Layout
 # =============================================================================
 
-app_layout = dbc.Container([
-    dcc.Store(id='view-type-list'),
-    dcc.Store(id='modify-list', data=[]),
-
-    top_select_panel,
-    html.Br(), 
-
-    dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()]),
-    
-    html.Br(), 
-    div_editor()
-    ], fluid=True)
+app_layout = dbc.Container(
+    dbc.Card(
+        dbc.CardBody([
+            # Data storage
+            dcc.Store(id='view-type-list'),
+            dcc.Store(id='modify-list', data=[]),
+        
+            html.Br(),
+            dbc.Row(dbc.Col(html.H1("Dividend Entry Uploader",
+                                    className="card-title"), width=4),
+                    justify="center"),
+            html.Br(),
+            step_1_date_and_file_selection,
+            html.Hr(),
+            dbc.Row([dbc.Col(step_2_index_only_selection),
+                     dbc.Col(step_3_view_type_selection)], justify="evenly"),
+            html.Hr(), 
+            dcc.Loading(id="is-loading-div-uploader", children=[div_uploader()]),
+            html.Hr(), 
+            div_editor(),
+        ]), className='mt-3')
+    , fluid=True)
