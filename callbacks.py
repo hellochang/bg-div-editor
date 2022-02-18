@@ -23,7 +23,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     """
     
     debug_mode = False
-    def print_callback(debug_mode: bool):
+    def print_callback(debug_mode: bool) -> None:
         """
         Function that prints callback to help debugging
 
@@ -48,7 +48,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         return decorator
     
     def compare_new_data_with_factset(secid: str, update_date, bbg,
-                                      factset, check_exist):
+                                      factset, check_exist) -> pd.DataFrame:
         if check_exist:
             factset = factset[factset['exdate'] <= update_date] 
             ##TODO inorporate into laod_data step
@@ -75,135 +75,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             'Mismatch', 'Good')
         return new_data_comparison
 
-    @app.callback(
-        Output('editor-fsym-id-dropdown', 'options'),
-        Output('editor-fsym-id-dropdown', 'value'),
-        Input('modify-list', 'data'),
-        Input('modify-switch', 'value'),
-        State('new-data-data-table', 'data'),
-        )
-    @print_callback(debug_mode)
-    def get_editor_data(modify_lst, is_switch_on, datatable):
-        if not modify_lst: return no_update
-        df = pd.DataFrame(datatable)
-        lst = list(set([row['name'] for row in modify_lst]))
-        lst.sort()
-        print('get_editor_data')
-        print(lst)
-        global modify_data 
-        modify_data = df[df['fsym_id'].isin(lst)]
-        print(modify_data)
-        fsym_ids = [{"label": i, "value": i} for i in lst]
-        if not is_switch_on: return no_update, no_update
-        return fsym_ids , fsym_ids[0]['value']
- 
-    @app.callback(
-        Output('editor-open-msg', 'is_open'),
-        Output('editor-main', 'style'),
-        Input('modify-switch', 'value'),
-        )   
-    def show_editor_info_msg(is_switch_on):
-        if not is_switch_on:
-            return True, {'display': 'none'}
-        return False, {}
-    
-    @app.callback(
-            Output('modify-list', 'data'),
-            Output('add-to-editor-msg', 'is_open'),
-            Input('modify-button', 'n_clicks'),
-            State('fsym-id-dropdown', 'value'),
-            State('modify-list', 'data'))
-    @print_callback(debug_mode)
-    def update_modify_list(n_clicks, cur_fsym_id, modify_list):
-        print('update_modify_list')
-        print(cur_fsym_id)
-        if not n_clicks:
-            return no_update
-    
-        modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
-        return modify_list, True
-                 
-    @app.callback(
-            Output('fsym-id-dropdown', 'value'),
-            Output('warning-end-dropdown', 'children'),
-            Output('warning-end-dropdown', 'is_open'),
-            Input('next-button', 'n_clicks'),
-            Input('prev-button', 'n_clicks'),
-            State('fsym-id-dropdown', 'value'),
-            State('view-type-radio', 'value'),
-            State('view-type-list', 'data'))
-    def go_to_next_prev(prev_clicks, next_clicks, cur_fsym_id,
-                        view_type, view_type_lst):
-        changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
-        lst = [row[view_type] for row in view_type_lst]
-        lst = sorted(list(filter(None, lst)))
-
-        # For giving a default value
-        if not cur_fsym_id:
-            return lst[0], '', False
-        if not prev_clicks and not next_clicks:
-            return no_update
-        if not cur_fsym_id in lst:
-            return lst[0], '', False
-        if prev_clicks or next_clicks:
-            idx = lst.index(cur_fsym_id)-1 \
-                if 'prev-button.n_clicks' == changed_id \
-                else lst.index(cur_fsym_id)+1
-            beg_end_msg = 'first' if idx < 0 else 'last'
-            if idx >= len(lst) or idx < 0:
-                end_dropdown_msg = f'This is the {beg_end_msg} Fsym Id.'
-                return no_update, end_dropdown_msg, True
-            return lst[idx], '', False 
-    
-    @app.callback(
-        Output('modified-data-rows', 'style_data_conditional'),
-        Input('modified-data-rows', 'data'))
-    def highlight_changed_cell(data):
-        if not data: return []
-        df = pd.DataFrame(data)
-        lst_idx, lst_changed_cell = find_changed_cell(df)
-        return [
-            {
-                'if': {
-                    'filter_query': '{{id}} = {}'.format(i),
-                    # 'row_index': i, # More efficient but not for multipage df
-                    'column_id': col
-                },
-                'backgroundColor': 'DodgerBlue',
-                'color': 'white'
-            }
-            for i, col in zip(lst_idx, lst_changed_cell)
-        ]
-
-    def find_changed_cell(df: pd.DataFrame) -> Tuple[List, List]:
-        """
-        Find the cell that the user modified
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            DataFrame of the modified history
-
-        Returns
-        -------
-        Tuple[List, List]
-            A list of the index and column name for the changed cell.
-
-        """
-        df = df[~(df['action'] =='delete')]
-        cols = df.columns[1:12].tolist()
-        lst_changed_cell = []
-        lst_idx = []
-        for idx, row in df.iterrows():
-            if row['action'] == 'update':
-                next_row = df.loc[idx+1]
-    
-                for col in cols:
-                    both_nan = (row[col] != row[col]) and (next_row[col] != next_row[col])
-                    if (row[col] != next_row[col]) and not both_nan:
-                        lst_idx = lst_idx + [idx, idx+1]
-                        lst_changed_cell = lst_changed_cell + [col, col]
-        return lst_idx, lst_changed_cell   
+# =============================================================================
+#   Uploader
+# =============================================================================
     
     @app.callback(
       Output('path-warning-msg1', 'children'),
@@ -297,6 +171,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         f_date = update_date.strftime('%Y-%m-%d').replace('-','')
         new_data_path = rf"""\\bgndc\Analysts\Scheduled_Jobs\output\new_dvd_data_{f_date}.parquet"""
         update_list_path = rf"""\\bgndc\Analysts\Scheduled_Jobs\input\sec_list_{f_date}.csv"""
+        
+        # Invalid default path
         try:
             new_data = pd.read_parquet(new_data_path)
             update_list = pd.read_csv(update_list_path)
@@ -306,7 +182,8 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                                     Error for seclist path: {e}."""
             return no_update, no_update, no_update, no_update, no_update,\
                 no_update, no_update, import_warning_msg, True
-
+        
+        # Use user submitted path
         if path_btn_clicks  > 0: 
             if not div_path_valid and not seclist_path_valid:
                 return no_update
@@ -322,15 +199,15 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     
         skipped = process_skipped(skipped)
         
+        # Load data
         seclist = list(new_data['fsym_id'].unique()) +\
             list(skipped['fsym_id'].unique())
+    
         bg_div_data = load_bg_div_data(seclist)
         split_data = load_split_data(seclist)
         split_data['p_split_date'] = pd.DatetimeIndex(
             split_data['p_split_date']).strftime("%Y-%m-%d")
-
         basic_info_data = load_basic_info_data(seclist)
-        
         factset_data = load_factset_data(seclist)
         
         if factset_data.shape[0] != 0:
@@ -379,9 +256,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('skipped-data-table', 'data'))
     def load_selected_data(selected_review_option, datatable, view_type_data, skipped):
         # df_selection = pd.DataFrame(view_type_data)
-        print('load_selected_data')
         display_option = {'display': 'none'}
-        print(selected_review_option)
         if selected_review_option != 'skipped':
             df = pd.DataFrame(datatable)
         else:
@@ -556,7 +431,16 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('bg-db-warning-msg', 'is_open'),
         Output('bg-db-warning-msg', 'children'),
         Input('div-selected-data-table', 'data'))
-    def plot_db(div_selected_datatable):        
+    def plot_db(div_selected_datatable: List[Dict]):     
+        """
+        Plot graph for dividend data from the database.
+
+        Parameters
+        ----------
+        div_selected_datatable : List[Dict]
+            Dividend datatable for the selected fsym_id.
+
+        """     
         if len(div_selected_datatable) == 0:
             has_data = False
             warning_msg = 'This holding is not in the bg_div table.' 
@@ -579,11 +463,14 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('output-data-table', 'data'),
         Input('editor-fsym-id-dropdown', 'value'))
     @print_callback(debug_mode)
-    def filter_fysm_id_editor(selected):
+    def filter_fysm_id_editor(selected: str) -> List[Dict]:
+        print('filter_fysm_id_editor')
+        print(modify_data)
         if modify_data.shape[0] == 0: return no_update
         output_df = modify_data.copy()
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             output_df[col] = pd.DatetimeIndex(output_df[col]).strftime("%Y-%m-%d")
+        print(modify_data)
 
         if selected == 'All':
             return output_df.to_dict('records')
@@ -592,10 +479,150 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     @app.callback(
         Output('modify-button', 'disabled'),
         Input('modify-switch', 'value'))
-    def show_collapse_button(is_switch_on):
+    def show_collapse_button(is_switch_on: bool) -> bool:
         if is_switch_on:
             return True
         return False
+    
+    # @app.callback(
+    #     Output('modify-switch', 'value'),
+    #     Input('view-type-button', 'value'))
+    # def clear_modify_button_after_switch_view_type(view_type_button):
+    #     return False
+
+    @app.callback(
+            Output('modify-list', 'data'),
+            Output('add-to-editor-msg', 'is_open'),
+            Input('modify-button', 'n_clicks'),
+            Input('view-type-radio', 'value'),
+            State('fsym-id-dropdown', 'value'),
+            State('modify-list', 'data'))
+    @print_callback(debug_mode)
+    def update_modify_list(n_clicks: int, view_type_radio: str,
+                           cur_fsym_id: str,
+                           modify_list: List) -> Tuple[List[str], bool]:
+        
+        changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
+        if changed_id == 'view-type-radio.value':
+            return [], False
+        if not n_clicks:
+            return no_update
+        modify_list.append({'name': cur_fsym_id, 'id': cur_fsym_id})
+        return modify_list, True
+                 
+    @app.callback(
+            Output('fsym-id-dropdown', 'value'),
+            Output('warning-end-dropdown', 'children'),
+            Output('warning-end-dropdown', 'is_open'),
+            Input('next-button', 'n_clicks'),
+            Input('prev-button', 'n_clicks'),
+            State('fsym-id-dropdown', 'value'),
+            State('view-type-radio', 'value'),
+            State('view-type-list', 'data'))
+    def go_to_next_prev(prev_clicks: int, next_clicks: int, cur_fsym_id: str,
+                        view_type: str, view_type_lst: List):
+        changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
+        lst = [row[view_type] for row in view_type_lst]
+        lst = sorted(list(filter(None, lst)))
+
+        # For giving a default value
+        if not cur_fsym_id:
+            return lst[0], '', False
+        if not prev_clicks and not next_clicks:
+            return no_update
+        if not cur_fsym_id in lst:
+            return lst[0], '', False
+        if prev_clicks or next_clicks:
+            idx = lst.index(cur_fsym_id)-1 \
+                if 'prev-button.n_clicks' == changed_id \
+                else lst.index(cur_fsym_id)+1
+            beg_end_msg = 'first' if idx < 0 else 'last'
+            if idx >= len(lst) or idx < 0:
+                end_dropdown_msg = f'This is the {beg_end_msg} Fsym Id.'
+                return no_update, end_dropdown_msg, True
+            return lst[idx], '', False 
+    
+    @app.callback(
+        Output('modified-data-rows', 'style_data_conditional'),
+        Input('modified-data-rows', 'data'))
+    def highlight_changed_cell(data):
+        if not data: return []
+        df = pd.DataFrame(data)
+        lst_idx, lst_changed_cell = find_changed_cell(df)
+        return [
+            {
+                'if': {
+                    'filter_query': '{{id}} = {}'.format(i),
+                    # 'row_index': i, # More efficient but not for multipage df
+                    'column_id': col
+                },
+                'backgroundColor': 'DodgerBlue',
+                'color': 'white'
+            }
+            for i, col in zip(lst_idx, lst_changed_cell)
+        ]
+
+    def find_changed_cell(df: pd.DataFrame) -> Tuple[List, List]:
+        """
+        Find the cell that the user modified
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame of the modified history
+
+        Returns
+        -------
+        Tuple[List, List]
+            A list of the index and column name for the changed cell.
+
+        """
+        df = df[~(df['action'] =='delete')]
+        cols = df.columns[1:12].tolist()
+        lst_changed_cell = []
+        lst_idx = []
+        for idx, row in df.iterrows():
+            if row['action'] == 'update':
+                next_row = df.loc[idx+1]
+    
+                for col in cols:
+                    both_nan = (row[col] != row[col]) and (next_row[col] != next_row[col])
+                    if (row[col] != next_row[col]) and not both_nan:
+                        lst_idx = lst_idx + [idx, idx+1]
+                        lst_changed_cell = lst_changed_cell + [col, col]
+        return lst_idx, lst_changed_cell   
+    
+    @app.callback(
+        Output('editor-fsym-id-dropdown', 'options'),
+        Output('editor-fsym-id-dropdown', 'value'),
+        Input('modify-list', 'data'),
+        Input('modify-switch', 'value'),
+        State('new-data-data-table', 'data'),
+        )
+    @print_callback(debug_mode)
+    def get_editor_data(modify_lst, is_switch_on, datatable):
+        print('get_editor_data')
+        if not modify_lst: return no_update
+        df = pd.DataFrame(datatable)
+        lst = list(set([row['name'] for row in modify_lst]))
+        lst.sort()
+        global modify_data 
+        modify_data = df[df['fsym_id'].isin(lst)]
+        fsym_ids = [{"label": i, "value": i} for i in lst]
+        print(lst)
+        print(modify_data)
+        if not is_switch_on: return no_update, no_update
+        return fsym_ids , fsym_ids[0]['value']
+ 
+    @app.callback(
+        Output('editor-open-msg', 'is_open'),
+        Output('editor-main', 'style'),
+        Input('modify-switch', 'value'),
+        )   
+    def show_editor_info_msg(is_switch_on):
+        if not is_switch_on:
+            return True, {'display': 'none'}
+        return False, {}
         
     @app.callback(
         Output('edit-data-table', 'data'),
@@ -604,11 +631,17 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('editor-fsym-id-dropdown', 'value'),
         State('output-data-table', 'data'))
     @print_callback(debug_mode)
-    def update_changed_data_table(rows, rows_prev, fsym_id, modified_datatable):
-        if rows is None: return no_update
+    def update_changed_data_table(rows: List[Dict], rows_prev: List[Dict],
+                                  fsym_id: str, 
+                                  modified_datatable: List[Dict]) -> List[Dict]:
+        print('update_changed_data_table')
+        print(rows)
+        if not len(rows): return no_update
         global modify_data
-
-        modified_df = pd.DataFrame(modified_datatable) 
+        print(modify_data)
+        # if modified_datatable:
+        modified_df = pd.DataFrame(modified_datatable)
+        print(modified_df)
         modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
         modify_data = pd.concat([modify_data, modified_df])
     
@@ -620,6 +653,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         # res  = res +  undo_delete_row if undo_delete_row is not None else res
         # pd.DataFrame(undo_delete_row).drop(columns=['action'], inplace=True)
         modify_data = pd.concat([modify_data, pd.DataFrame(undo_delete_row)])
+        print(modify_data)
         return res
     
     @app.callback(
