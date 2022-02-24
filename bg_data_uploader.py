@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 19 17:32:36 2021
+Created on Thu Jan 13 14:52:24 2022
 
-@author: Todd.Liu
+@author: Chang.Liu
 """
 from pathlib import Path
 #%%
@@ -159,7 +159,8 @@ def plot_dividend_data(new_data: pd.DataFrame, bg_data: pd.DataFrame
     fig = go.Figure(layout=go.Layout(xaxis={'type': 'date'},
                                      yaxis=dict(title='Amount'),
                                      yaxis2=dict(title='Freq', overlaying='y',
-                                                 side='right', range=[0, 14])))
+                                                 side='right', range=[0, 14],
+                                                 showgrid=False)))
     new = new_data.copy()
     new['div_type'] = new['div_type'].str.replace(' ', '')
     new_regular = new[new['div_type'] != 'special']
@@ -170,9 +171,10 @@ def plot_dividend_data(new_data: pd.DataFrame, bg_data: pd.DataFrame
     bg_regular = bg[bg['div_type'] != 'special']
     bg_special = bg[bg['div_type'] == 'special']
     
-    bg['exdate'] = pd.to_datetime(bg['exdate'], format='%Y-%m-%d')
-    new['exdate'] = pd.to_datetime(new['exdate'], format='%Y-%m-%d')
-    already_exist = list(set(bg['exdate']).intersection(set(new['exdate'])))
+    # Check if data already exist
+    bg_exdate = pd.to_datetime(bg['exdate'], format='%Y-%m-%d')
+    new_exdate = pd.to_datetime(new['exdate'], format='%Y-%m-%d')
+    already_exist = list(set(bg_exdate).intersection(set(new_exdate)))
     if len(already_exist) > 0:
         if len(already_exist) == 1:
             already_exist = already_exist[0].strftime('%Y-%m-%d')
@@ -180,8 +182,8 @@ def plot_dividend_data(new_data: pd.DataFrame, bg_data: pd.DataFrame
             already_exist = [already_exist_date.strftime('%Y-%m-%d')
                              for already_exist_date in already_exist]
         msg = f'Payments on {already_exist} already exists.'
-
-        return fig, msg
+    
+    # Plot
     fig.add_trace(
         go.Scatter(x=new_regular['exdate'], y=new_regular['payment_amount'],
                    mode='lines+markers', name='New Regular', 
@@ -211,12 +213,13 @@ def plot_dividend_data(new_data: pd.DataFrame, bg_data: pd.DataFrame
         go.Scatter(x=bg_special['exdate'], y=bg_special['payment_amount'],
                    mode='markers',name='BG Special', line=dict(color='black')))
 
-    if new.shape[0]>1:
+    if new.shape[0] > 1:
         fig.update_layout(shapes=[dict(type="rect", xref="x", 
                                        yref="paper",x0=new['exdate'].min(),
                                        y0=0,x1=new['exdate'].max(),
                                        y1=1,fillcolor="LightSalmon",opacity=0.5,
-                                       layer="below",line_width=0)])
+                                       layer="below",line_width=0)],
+                          yaxis2=dict(showgrid=False))
     return fig, msg
 
 
