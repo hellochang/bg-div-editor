@@ -6,23 +6,17 @@ Created on Thu Dec 16 12:52:24 2021
 """
 
 from dash import dash
-from dash.long_callback import DiskcacheLongCallbackManager
 import dash_bootstrap_components as dbc
 
 ## Diskcache
 import diskcache
 cache = diskcache.Cache("./cache")
-long_callback_manager = DiskcacheLongCallbackManager(cache)
-
 
 from layout import app_layout
 from callbacks import register_callbacks 
 
 import sys
 sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
-from bg_data_importer import DataImporter
-data_importer_dash = DataImporter(False)
-
 
 # =============================================================================
 # Dash app
@@ -30,8 +24,8 @@ data_importer_dash = DataImporter(False)
 
 # Running the server
 if __name__ == "__main__":
-    # View the app at http://192.168.2.77:8080/ or, in general,
-    #   http://[host computer's IP address]:8080/
+    # View the app at http://192.168.2.77 or, in general,
+    #   http://[host computer's IP address]
     
     app = dash.Dash(
         __name__,
@@ -43,8 +37,9 @@ if __name__ == "__main__":
     )
     app.config.suppress_callback_exceptions = True
     app.layout = app_layout
-    register_callbacks(app, long_callback_manager, data_importer_dash)
+    register_callbacks(app)
     
-    # app.run_server(debug=False, host='0.0.0.0', port=8080, use_reloader=False)
-    app.run_server(debug=True, port=80, dev_tools_silence_routes_logging = True)
+    app.run_server(debug=False, host='0.0.0.0', port=80, use_reloader=False)
+    # app.run_server(debug=True, port=80, dev_tools_silence_routes_logging = True)
+    # app.run_server(debug=False, port=80, dev_tools_silence_routes_logging = True)
             

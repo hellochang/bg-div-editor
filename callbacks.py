@@ -4,7 +4,7 @@ Created on Fri Jan 21 13:41:16 2022
 
 @author: Chang.Liu
 """
-from dash import callback_context, no_update
+from dash import callback_context, no_update, dash
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 # from dash_extensions.enrich import Trigger, FileSystemCache
@@ -12,14 +12,23 @@ from dash.exceptions import PreventUpdate
 import pandas as pd
 import numpy as np
 
-from typing import List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 from bg_data_uploader import *
 
 
-def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
+def register_callbacks(app: dash.Dash) -> None:
     """
-    Registers the callbacks to the app
+    Registers the callbacks to the app    
+
+    Parameters
+    ----------
+    app : dash.Dash
+        Dash app instance.
+
+    Returns
+    -------
+    None
     """
     
     debug_mode = False
@@ -46,34 +55,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 return result
             return wrapper
         return decorator
-    
-    def compare_new_data_with_factset(secid: str, update_date, bbg,
-                                      factset, check_exist) -> pd.DataFrame:
-        if check_exist:
-            factset = factset[factset['exdate'] <= update_date] 
-            ##TODO inorporate into laod_data step
-        factset = factset.copy()
-        bbg['exdate'] = pd.to_datetime(bbg['exdate'], format='%Y-%m-%d')
-        factset['exdate'] = pd.to_datetime(factset['exdate'], format='%Y-%m-%d')
-        new_data_comparison = pd.merge(bbg, factset, how='outer', 
-                                       on=['fsym_id','exdate','div_type'],
-                                       suffixes=('_bbg','_factset'))
-        new_data_comparison = new_data_comparison.sort_values(['exdate'])
-        new_data_comparison = new_data_comparison.reset_index(drop=True)
-        new_data_comparison = new_data_comparison[
-            new_data_comparison.filter(
-                regex='fsym_id|exdate|payment_date|amount'
-                ).columns]
-        new_data_comparison['check_amount'] = np.where(
-            abs(
-                new_data_comparison['payment_amount_factset']-\
-                    new_data_comparison['payment_amount_bbg'])>0.001,
-                'Mismatch', 'Good')
-        new_data_comparison['check_payment_date'] = np.where(
-            new_data_comparison['payment_date_factset']!=\
-                new_data_comparison['payment_date_bbg'],
-            'Mismatch', 'Good')
-        return new_data_comparison
 
 # =============================================================================
 #   Uploader
@@ -92,8 +73,30 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
       Input('div-data-path', 'value'),
       Input('seclist-path', 'value'),
       )
-    def check_path_validity(update_date, new_data_path=None, 
-                            update_list_path=None):
+    def check_path_validity(update_date: str, new_data_path: Optional[str]=None, 
+                            update_list_path: Optional[str]=None
+                            ) -> Tuple[str, str, bool, bool,
+                                       str, str, str, str]:
+        """
+        Checks whether the user input paths are valid and 
+        returns path placeholder based on selected date with the datepicker
+
+        Parameters
+        ----------
+        update_date : str
+            Date selected by the Datepicker in step 1.
+        new_data_path : Optional[str], optional
+            User input path for Bloomberg parquet file. The default is None.
+        update_list_path : Optional[str], optional
+            User input path for update list csv file. The default is None.
+
+        Returns
+        -------
+        Tuple[str, str, bool, bool,                                       
+              str, str, str, str]
+            Warning message if the paths are invalid.
+            Paths and default placeholder for the paths
+        """
         if update_date is None: return no_update
         import_warning_msg_1 = ''
         import_warning_msg_2 = ''       
@@ -161,11 +164,42 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('div-data-path', 'valid'),
         State('seclist-path', 'valid'),
     )
-    # @functools.lru_cache(maxsize=5)
-    def load_data_to_dash(update_date, index_flag, path_btn_clicks,
-                          new_data_path, update_list_path,
-                          div_path_valid, seclist_path_valid
-                          ):
+    def load_data_to_dash(update_date: str, index_flag: bool, 
+                          path_btn_clicks: int,
+                          new_data_path: str, update_list_path: str,
+                          div_path_valid: bool, seclist_path_valid: bool
+                          ) -> Tuple[List[Dict], List[Dict], List[Dict],
+                                     List[Dict], List[Dict], List[Dict],
+                                     List[Dict], str, bool]:
+        """
+        Load data to Dash from DB and local files
+
+        Parameters
+        ----------
+        update_date : str
+            The date selected in the datepicker in step 1.
+        index_flag : bool
+            Whether we're viewing data from indices (SP 500) or not from step 2.
+        path_btn_clicks : int
+            Submit button for user input path.
+        new_data_path : str
+            Path for Bloomberg data parquet file.
+        update_list_path : str
+            Path for update list csv file.
+        div_path_valid : bool
+            If new_data_path is valid.
+        seclist_path_valid : bool
+            If update_list_path is valid.
+
+        Returns
+        -------
+        Tuple[List[Dict], List[Dict], List[Dict],                                     
+              List[Dict], List[Dict], List[Dict],                                     
+              List[Dict], str, bool]
+            Populated data
+            Warning message if file path is invalid (hence no data is populated)
+
+        """
         if update_date is None: return no_update
         update_date = last_day_of_month(datetime.strptime(update_date, '%Y-%m-%d'))
         f_date = update_date.strftime('%Y-%m-%d').replace('-','')
@@ -191,12 +225,11 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 new_data = pd.read_parquet(new_data_path)
             if seclist_path_valid:
                 update_list = pd.read_csv(update_list_path)
-
+                
+        # Process data
         (new_data, skipped, pro_rata) = \
             preprocess_bbg_data(new_data, update_list, index_flag)
-        
         new_data = bbg_data_single_security(new_data)
-    
         skipped = process_skipped(skipped)
         
         # Load data
@@ -214,6 +247,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             factset_data = factset_data_single_security(factset_data)
             
         (manual_list, all_goods) = bulk_upload(new_data, update_date, factset_data)
+        
         if all_goods is not None:
             all_goods_lst = sorted(all_goods['fsym_id'].to_list())
         else: all_goods_lst = []
@@ -231,14 +265,12 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             'all_goods': pd.Series(all_goods_lst),
             'mismatch': pd.Series(mismatch_lst),   
             'skipped': pd.Series(skipped_lst)})
-        new_data.to_csv('new_data_processed')
-        skipped.to_csv('skipped_processed')
         return new_data.to_dict('records'),\
                 view_type_ids.to_dict('records'),\
                 bg_div_data.to_dict('records'),\
                 split_data.to_dict('records'), basic_info_data.to_dict('records'),\
-                    factset_data.to_dict('records'), skipped.to_dict('records'),\
-                    no_update, no_update
+                factset_data.to_dict('records'), skipped.to_dict('records'),\
+                no_update, no_update
     
     @app.callback(
         Output('new-data-data-table', 'data'),
@@ -254,8 +286,25 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Input('data-table', 'data'),
         State('view-type-list', 'data'),
         State('skipped-data-table', 'data'))
-    def load_selected_data(selected_review_option, datatable, view_type_data, skipped):
-        # df_selection = pd.DataFrame(view_type_data)
+    def load_selected_data(selected_review_option: str, datatable: List[Dict],
+                           view_type_data: List[Dict], skipped: List[Dict]
+                           ) -> Tuple[List[Dict], List[Dict], str, bool, Dict,
+                                      List[Dict], int, int, bool]:
+        """
+        Load data based on whether All Goods, Mismatch or Skipped is selected
+
+        Parameters
+        ----------
+        selected_review_option : str
+            The option user selected. One of All Goods, Mismatch or Skipped.
+        datatable : List[Dict]
+            Bloomberg data from the parquet file.
+        view_type_data : List[Dict]
+            List of secids for each of All Goods, Mismatch and Skipped.
+        skipped : List[Dict]
+            Skipped data.
+            
+        """
         display_option = {'display': 'none'}
         if selected_review_option != 'skipped':
             df = pd.DataFrame(datatable)
@@ -300,8 +349,36 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('new-data-data-table', 'data'),
         State('bg-div-data-table', 'data'),
         State('split-db-data-table', 'data'))
-    def filter_fysm_id_data(selected, datatable, div_datatable, split_datatable):
-        if datatable is None: return no_update
+    def filter_fysm_id_data(selected: str, datatable: List[Dict], 
+                            div_datatable: List[Dict], 
+                            split_datatable: List[Dict]
+                            ) -> Tuple[List[Dict], List[Dict],
+                                       List[Dict], List[Dict],
+                                       List[Dict], bool, str, Dict]:
+        """
+        Filter datatable based on the selected fsym_id
+
+        Parameters
+        ----------
+        selected : str
+            Selected secid from the dropdown.
+        datatable : List[Dict]
+            Bloomberg datatable
+        div_datatable : List[Dict]
+            Bg_div datatable .
+        split_datatable : List[Dict]
+            Split datatable.
+
+        Returns
+        -------
+        Tuple[List[Dict], List[Dict],                                       
+              List[Dict], List[Dict],                                       
+              List[Dict], bool, str, Dict]
+            Filtered datatable for the selected fsym_id
+            Warning message for splits if there's no data
+        
+        """
+        if not datatable: return no_update
         new_data_filtered = [row for row in datatable if row['fsym_id'] == selected]
         
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
@@ -322,9 +399,9 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
 
         return new_data_filtered, new_data_col,\
             div_selected, split_selected,\
-        split_cols, not len(split_selected),\
+            split_cols, not len(split_selected),\
             f'There is no split data for {selected}',\
-                {} if len(split_selected) else  {'display': 'none'}
+            {} if len(split_selected) else  {'display': 'none'}
             
     @app.callback(
         Output('basic-info', 'children'),
@@ -338,41 +415,68 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('basic-info-data-table', 'data'),
         State('factset-data-table', 'data'),
         )
-    def get_basic_info(new_data, bg_div_data, update_date, 
-                       basic_info_datatable, factset_datatable):
+    def get_basic_and_comparison_info(new_data: List[Dict], 
+                                      bg_div_data: List[Dict], 
+                                      update_date: str,
+                                      basic_info_datatable: List[Dict],
+                                      factset_datatable: List[Dict]
+                                      ) -> Tuple[str, List[Dict], 
+                                                 List[Dict], go.Figure, str]:
+        """
+        Get basic information and comparison dataframe for the selected fsym_id
+
+        Parameters
+        ----------
+        new_data : List[Dict]
+            Bloomberg data.
+        bg_div_data : List[Dict]
+            bg_div data from DB.
+        update_date : str
+            Date selected in datepicker in step 1.
+        basic_info_datatable : List[Dict]
+            Datatable contain basic information for the current secid dropdown.
+        factset_datatable : List[Dict]
+            Datatable for factset data for the current secid dropdown.
+
+        Returns
+        -------
+        Tuple[str, List[Dict],List[Dict], go.Figure, str]
+            Basic information string for the current secid
+            Comparison dataframe and columns for the current secid
+            Graph for the current secid
+            Message outlining the issue/info of BBG data for the current secid
+
+        """
         if not new_data: return no_update
         new_data = pd.DataFrame(new_data)
 
         fsym_id = new_data['fsym_id'].values[0]
         bg_div_df = pd.DataFrame(bg_div_data)
         info_df = pd.DataFrame(basic_info_datatable)
-
         info_df = info_df[info_df['fsym_id']==fsym_id]
+        basic_info_str = basic_info(info_df, new_data)
         factset_df = pd.DataFrame(factset_datatable)
         if factset_df.shape[0] != 0:
             factset_df = factset_df[factset_df['fsym_id']==fsym_id]
 
         check_exist = bg_div_df.shape[0] != 0
-        basic_info_str = basic_info(fsym_id, info_df, new_data)
         payment_exist_msg = ''
         if not check_exist:
             comparison_msg = "This is a newly added."
-            comparison = compare_new_data_with_factset(fsym_id, update_date,
+            comparison = compare_new_data_with_factset(update_date,
                                                        new_data,  factset_df,
                                                        check_exist)
             fig = plot_dividend_data_comparison(factset_df, new_data)
         else:
             (last_cur, fstest_cur) = dividend_currency(new_data)
-            comparison = compare_new_data_with_factset(fsym_id, update_date, 
+            comparison = compare_new_data_with_factset(update_date, 
                                                        new_data, factset_df, 
                                                        check_exist)
 
             new_data['listing_currency'] = fstest_cur
             new_data['payment_currency'] = last_cur
             comparison_msg = 'New Dividend Data'
-            fig, payment_exist_msg = plot_dividend_data(fsym_id, new_data,
-                                                        bg_div_df)
-            if payment_exist_msg != '': comparison_msg = payment_exist_msg
+            fig, payment_exist_msg = plot_dividend_data(new_data, bg_div_df)
             has_mismatch = not (comparison[['check_amount', 
                                             'check_payment_date']]=='Good')\
                 .all().all()
@@ -382,6 +486,7 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
                 comparison_msg = f"""Possible currency change. 
                                 Last payment: {last_cur}. 
                                 Factset payment: {fstest_cur}"""
+            if payment_exist_msg != '': comparison_msg = payment_exist_msg
 
         for col in ['exdate' , 'payment_date_bbg', 'payment_date_factset']:
             comparison[col] = pd.DatetimeIndex(comparison[col])\
@@ -397,7 +502,31 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('factset-warning-msg', 'children'),
         Input('fsym-id-data-table', 'data'),
         Input('div-selected-data-table', 'data'))
-    def plot_comparison(new_data, div_selected_datatable):
+    def plot_comparison(new_data: List[Dict],
+                        div_selected_datatable: List[Dict]
+                        ) -> Tuple[go.Figure, List[Dict], bool, str]:
+        """
+        Plot graph that compares Bloomberg and bg_div data
+
+        Parameters
+        ----------
+        new_data : List[Dict]
+            Bloomberg data.
+        div_selected_datatable : List[Dict]
+            bg_div data.
+
+        Returns
+        -------
+        fig : go.Figure
+            Plotted graph.
+        display_option : List[Dict]
+            Should the factset graph be showed (by using css style).
+        is_open: bool
+            If the warning message should be displayed.
+        warning_msg : str
+            Content of the warning message.
+
+        """
         bbg = pd.DataFrame(new_data)
         bg = pd.DataFrame(div_selected_datatable)
         if len(bg) == 0:
@@ -416,7 +545,21 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     @app.callback(
         Output('bbg-graph', 'figure'),
         Input('fsym-id-data-table', 'data'))
-    def plot_bbg(new_data):
+    def plot_bbg(new_data: List[Dict]) -> go.Figure:
+        """
+        Plot Bloomberg graph.  
+
+        Parameters
+        ----------
+        new_data : List[Dict]
+            Bloomberg data.
+
+        Returns
+        -------
+        fig : go.Figure
+            Bloomberg graph.
+
+        """
         if not new_data: return no_update
         new_data = pd.DataFrame(new_data)
         df = prepare_bbg_data(new_data)
@@ -464,13 +607,24 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Input('editor-fsym-id-dropdown', 'value'))
     @print_callback(debug_mode)
     def filter_fysm_id_editor(selected: str) -> List[Dict]:
-        print('filter_fysm_id_editor')
-        print(modify_data)
+        """
+        Filter data based on secid selected in the dropdown for step 5 editor
+
+        Parameters
+        ----------
+        selected : str
+            Selected secid in the drop down.
+
+        Returns
+        -------
+        List[Dict]
+            Filtered data for the selected secid.
+
+        """
         if modify_data.shape[0] == 0: return no_update
         output_df = modify_data.copy()
         for col in ['declared_date' , 'exdate', 'payment_date', 'record_date']:
             output_df[col] = pd.DatetimeIndex(output_df[col]).strftime("%Y-%m-%d")
-        print(modify_data)
 
         if selected == 'All':
             return output_df.to_dict('records')
@@ -479,31 +633,75 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     @app.callback(
         Output('modify-button', 'disabled'),
         Input('modify-switch', 'value'))
-    def show_collapse_button(is_switch_on: bool) -> bool:
+    def disable_modify_button(is_switch_on: bool) -> bool:
+        """
+        Disable modify button (that adds current secid for being edited later)
+        if switch(that indicates all secids for editing is added) is on
+
+        Parameters
+        ----------
+        is_switch_on : bool
+            The switch indicates that the user finished adding secids 
+            for the editor.
+
+        Returns
+        -------
+        bool
+            Whether the button for adding secid is disabled.
+
+        """
         if is_switch_on:
             return True
         return False
     
-    # @app.callback(
-    #     Output('modify-switch', 'value'),
-    #     Input('view-type-button', 'value'))
-    # def clear_modify_button_after_switch_view_type(view_type_button):
-    #     return False
-
     @app.callback(
             Output('modify-list', 'data'),
             Output('add-to-editor-msg', 'is_open'),
             Input('modify-button', 'n_clicks'),
             Input('view-type-radio', 'value'),
+            Input('div-date-picker', 'date'),
+            Input('index-only-radio', 'value'),
             State('fsym-id-dropdown', 'value'),
             State('modify-list', 'data'))
     @print_callback(debug_mode)
     def update_modify_list(n_clicks: int, view_type_radio: str,
-                           cur_fsym_id: str,
-                           modify_list: List) -> Tuple[List[str], bool]:
+                           update_date: str, index_only: bool, cur_fsym_id: str,
+                           modify_list: List[Dict]) -> Tuple[List[str], bool]:
+        """
+        Add the current secid to the list that can be edited by the editor and
+        revert the list to blank if 1) the date is switched, 2) the view type
+        (all_goods, mismatched, skipped) is switched or 3) the index member 
+        only option is changed
+
+        Parameters
+        ----------
+        n_clicks : int
+            Number of clicks for the button of adding current secid.
+        view_type_radio : str
+            All_goods, mismatched or skipped.
+        update_date : str
+            Date selected in the date picker.
+        index_only : bool
+            Whether to choose only index members.
+        cur_fsym_id : str
+            Current secid in the secid dropdown for step 4 the data viewer.
         
-        changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
-        if changed_id == 'view-type-radio.value':
+        : List[Dict]
+            List of secids for data that's to be edited in the 
+            editor in step 5.
+
+        Returns
+        -------
+        Tuple[List[str], bool]
+            List of secids for data that's to be edited in step 5.
+            Message letting the user know that the current secid is added
+            in the editor.
+
+        """
+        changed_id = [p['prop_id'] for p in callback_context.triggered][0] 
+        if changed_id == 'view-type-radio.value' or\
+        changed_id == 'div-date-picker.date' or\
+        changed_id == 'index-only-radio.value':
             return [], False
         if not n_clicks:
             return no_update
@@ -520,7 +718,32 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             State('view-type-radio', 'value'),
             State('view-type-list', 'data'))
     def go_to_next_prev(prev_clicks: int, next_clicks: int, cur_fsym_id: str,
-                        view_type: str, view_type_lst: List):
+                        view_type: str, view_type_lst: List[Dict]
+                        ) -> Tuple[str, str, bool]:
+        """
+        Go to the next secid or the previous secid
+
+        Parameters
+        ----------
+        prev_clicks : int
+            The number of clicks for the previous button.
+        next_clicks : int
+            The number of clicks for the next button.
+        cur_fsym_id : str
+            Current selected secid.
+        view_type : str
+            All_goods, mismatched or skipped.
+        view_type_lst : List[Dict]
+            List of secids for the options of all_goods, mismatched or skipped.
+
+        Returns
+        -------
+        Tuple[str, str, bool]
+            Secid after tapping the next or prev button.
+            Warning message if this is the last/first secid.
+            Whether the warning message is open.
+
+        """
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]    
         lst = [row[view_type] for row in view_type_lst]
         lst = sorted(list(filter(None, lst)))
@@ -545,7 +768,21 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     @app.callback(
         Output('modified-data-rows', 'style_data_conditional'),
         Input('modified-data-rows', 'data'))
-    def highlight_changed_cell(data):
+    def highlight_changed_cell(data: List[Dict]) -> List[Dict]:
+        """
+        Highlight the cell modified in editor history
+
+        Parameters
+        ----------
+        data : List[Dict]
+            Editor history.
+
+        Returns
+        -------
+        List[Dict]
+            Dash styling format.
+
+        """
         if not data: return []
         df = pd.DataFrame(data)
         lst_idx, lst_changed_cell = find_changed_cell(df)
@@ -600,8 +837,27 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('new-data-data-table', 'data'),
         )
     @print_callback(debug_mode)
-    def get_editor_data(modify_lst, is_switch_on, datatable):
-        print('get_editor_data')
+    def get_editor_data(modify_lst: List[Dict], is_switch_on: bool,
+                        datatable: List[Dict]) -> Tuple[List[Dict], str]:
+        """
+        Get the data for the editor and populate the editor dropdown
+
+        Parameters
+        ----------
+        modify_lst : List[Dict]
+            List of secid for data that needs to be edited.
+        is_switch_on : bool
+            The switch indicates that the user finished adding secids 
+            for the editor.
+        datatable : List[Dict]
+            Datatable storing data for the current selection.
+
+        Returns
+        -------
+        Tuple[List[Dict], str]
+            The dropdown for the editor and the default value for the dropdown.
+
+        """
         if not modify_lst: return no_update
         df = pd.DataFrame(datatable)
         lst = list(set([row['name'] for row in modify_lst]))
@@ -609,8 +865,6 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         global modify_data 
         modify_data = df[df['fsym_id'].isin(lst)]
         fsym_ids = [{"label": i, "value": i} for i in lst]
-        print(lst)
-        print(modify_data)
         if not is_switch_on: return no_update, no_update
         return fsym_ids , fsym_ids[0]['value']
  
@@ -619,7 +873,23 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         Output('editor-main', 'style'),
         Input('modify-switch', 'value'),
         )   
-    def show_editor_info_msg(is_switch_on):
+    def show_editor_info_msg(is_switch_on: bool) -> Tuple[bool, Dict]:
+        """
+        Shows an info message if the editor switch is not turned on
+
+        Parameters
+        ----------
+        is_switch_on : bool
+            The switch for finishing adding secids for the editor.
+
+        Returns
+        -------
+        Tuple[bool, Dict]
+            Info message letting the user know that the editor switch needs
+                to be turned on for the editor to open.
+            Style for the editor (whether displays the editor or not)
+
+        """
         if not is_switch_on:
             return True, {'display': 'none'}
         return False, {}
@@ -634,26 +904,40 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
     def update_changed_data_table(rows: List[Dict], rows_prev: List[Dict],
                                   fsym_id: str, 
                                   modified_datatable: List[Dict]) -> List[Dict]:
-        print('update_changed_data_table')
-        print(rows)
-        if not len(rows): return no_update
+        """
+        
+
+        Parameters
+        ----------
+        rows : List[Dict]
+            The current copy of rows in the edit history.
+        rows_prev : List[Dict]
+            The previous copy of rows in the edit history.
+        fsym_id : str
+            The current selected secid from the secid dropdown for editors.
+        modified_datatable : List[Dict]
+            The editable datatable.
+
+        Returns
+        -------
+        List[Dict]
+            The storage for the editable datatable (unused at the moment unless
+            found a way to avoid the circular callback).
+
+        """
+        if not rows: return no_update
         global modify_data
-        print(modify_data)
-        # if modified_datatable:
         modified_df = pd.DataFrame(modified_datatable)
-        print(modified_df)
         modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
         modify_data = pd.concat([modify_data, modified_df])
-    
-        res = modify_data.to_dict('records')
         
+        res = modify_data.to_dict('records')
         undo_delete_row = [row for row in rows_prev if row not in rows] if \
             (rows is not None and rows_prev is not None) and \
                 len(rows_prev) > len(rows) else []
         # res  = res +  undo_delete_row if undo_delete_row is not None else res
         # pd.DataFrame(undo_delete_row).drop(columns=['action'], inplace=True)
         modify_data = pd.concat([modify_data, pd.DataFrame(undo_delete_row)])
-        print(modify_data)
         return res
     
     @app.callback(
@@ -663,11 +947,33 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
         State('output-data-table', 'data'),
         State('modified-data-rows', 'data'))
     @print_callback(debug_mode)
-    def update_modified_data_table(is_switch_on, rows_prev, rows, modified_rows):
+    def update_modified_data_table(is_switch_on: bool, rows_prev: List[Dict],
+                                   rows: List[Dict], 
+                                   modified_rows: List[Dict]) -> List[Dict]:
+        """
+        Populate edit history and add index for reference for highlighting
+
+        Parameters
+        ----------
+        is_switch_on : bool
+            The switch for finished adding the sec list.
+        rows_prev : List[Dict]
+            The previous copy of rows in the editable datatable.
+        rows : List[Dict]
+            The current copy of rows in the editable datatable.
+        modified_rows : List[Dict]
+            Edit history (the previous copy).
+
+        Returns
+        -------
+        List[Dict]
+            Edit history.
+
+        """
         changed_id = [p['prop_id'] for p in callback_context.triggered][0]
         if 'modify-switch.value' == changed_id:
             return []
-        if rows == None and rows_prev == None:
+        if not rows and not rows_prev:
             return no_update
         if (len(rows) == len(rows_prev)):
 
@@ -695,11 +1001,37 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             Input("upload-button", "n_clicks"),
             Input('modify-list', 'data'),
             State("new-data-data-table", "data"))
-    def export_not_modified_data(nclicks, modify_lst, modified_data): 
+    def export_not_modified_data(nclicks: int, modify_lst: List[Dict],
+                                 new_data: List[Dict]
+                                 ) -> Tuple[str, bool]:
+        """
+        Export data as it is, that haven't been modified by editor
+
+        Parameters
+        ----------
+        nclicks : int
+            Save button is clicked.
+        modify_lst : List[Dict]
+            List of the secids that have been added to the editor.
+        new_data : List[Dict]
+            Processed Bloomberg data.
+
+        Raises
+        ------
+        PreventUpdate
+            No update for the non-clicked case, prevent callback from firing.
+
+        Returns
+        -------
+        Tuple[str, bool]
+            A message letting user know that the button has been clicked.
+
+        """
+        
         if nclicks == 0:
             raise PreventUpdate
         else:
-            df = pd.DataFrame(modified_data)
+            df = pd.DataFrame(new_data)
             lst = [row['name'] for row in modify_lst]
             df = df[~(df['fsym_id'].isin(lst))]
             datatypes = dict.fromkeys(df.select_dtypes(np.int64).columns, np.int32)
@@ -716,7 +1048,26 @@ def register_callbacks(app, long_callback_manager, data_importer_dash) -> None:
             Output("save-modified-msg", "is_open"),
             Input("upload-modified-button", "n_clicks"),
             )
-    def export_modified_data(nclicks): 
+    def export_modified_data(nclicks: int) -> Tuple[str, bool]: 
+        """
+        Export data after being modified by editor
+
+        Parameters
+        ----------
+        nclicks : int
+            Save button is clicked.
+
+        Raises
+        ------
+        PreventUpdate
+            No update for the non-clicked case, prevent callback from firing.
+
+        Returns
+        -------
+        Tuple[str, bool]
+            A message letting user know that the button has been clicked.
+
+        """
         if nclicks == 0:
             raise PreventUpdate
         else:
