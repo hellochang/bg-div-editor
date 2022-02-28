@@ -349,7 +349,7 @@ def register_callbacks(app: dash.Dash) -> None:
         State('new-data-data-table', 'data'),
         State('bg-div-data-table', 'data'),
         State('split-db-data-table', 'data'))
-    def filter_fysm_id_data(selected: str, datatable: List[Dict], 
+    def filter_fsym_id_data(selected: str, datatable: List[Dict], 
                             div_datatable: List[Dict], 
                             split_datatable: List[Dict]
                             ) -> Tuple[List[Dict], List[Dict],
@@ -606,7 +606,7 @@ def register_callbacks(app: dash.Dash) -> None:
         Output('output-data-table', 'data'),
         Input('editor-fsym-id-dropdown', 'value'))
     @print_callback(debug_mode)
-    def filter_fysm_id_editor(selected: str) -> List[Dict]:
+    def filter_fsym_id_editor(selected: str) -> List[Dict]:
         """
         Filter data based on secid selected in the dropdown for step 5 editor
 
@@ -864,7 +864,8 @@ def register_callbacks(app: dash.Dash) -> None:
         lst.sort()
         global modify_data 
         modify_data = df[df['fsym_id'].isin(lst)]
-        fsym_ids = [{"label": i, "value": i} for i in lst]
+        fsym_ids = [{"label": 'All', "value": 'All'}] +\
+            [{"label": i, "value": i} for i in lst]
         if not is_switch_on: return no_update, no_update
         return fsym_ids , fsym_ids[0]['value']
  
@@ -902,7 +903,7 @@ def register_callbacks(app: dash.Dash) -> None:
         State('output-data-table', 'data'))
     @print_callback(debug_mode)
     def update_changed_data_table(rows: List[Dict], rows_prev: List[Dict],
-                                  fsym_id: str, 
+                                  selected: str, 
                                   modified_datatable: List[Dict]) -> List[Dict]:
         """
         
@@ -913,7 +914,7 @@ def register_callbacks(app: dash.Dash) -> None:
             The current copy of rows in the edit history.
         rows_prev : List[Dict]
             The previous copy of rows in the edit history.
-        fsym_id : str
+        selected : str
             The current selected secid from the secid dropdown for editors.
         modified_datatable : List[Dict]
             The editable datatable.
@@ -928,8 +929,11 @@ def register_callbacks(app: dash.Dash) -> None:
         if not rows: return no_update
         global modify_data
         modified_df = pd.DataFrame(modified_datatable)
-        modify_data = modify_data[~(modify_data['fsym_id'] == fsym_id)]
-        modify_data = pd.concat([modify_data, modified_df])
+        if selected != 'All':
+            modify_data = modify_data[~(modify_data['fsym_id'] == selected)]
+            modify_data = pd.concat([modify_data, modified_df])
+        else:
+            modify_data = modified_df
         
         res = modify_data.to_dict('records')
         undo_delete_row = [row for row in rows_prev if row not in rows] if \
