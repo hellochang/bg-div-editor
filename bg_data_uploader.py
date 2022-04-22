@@ -4,10 +4,8 @@ Created on Thu Jan 13 14:52:24 2022
 
 @author: Chang.Liu
 """
-from pathlib import Path
 #%%
-import functools
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 import pandas as pd
 import numpy as np
 import sys
@@ -17,7 +15,6 @@ from datetime import datetime, date, timedelta
 data_importer_uploader = DataImporter(verbose=False)
 
 # Plotting
-import plotly.express as px
 import plotly.graph_objects as go
 
 #%%

@@ -16,7 +16,7 @@ from layout import app_layout
 from callbacks import register_callbacks 
 
 import sys
-sys.path.insert(0, r'C:\Users\Chang.Liu\Documents\dev\Data_Importer')
+sys.path.insert(0, r'C:\Users\Chang.Liu\OneDrive - Bristolgate Capital Partners Inc\Documents\dev\Data_Importer')
 
 # =============================================================================
 # Dash app

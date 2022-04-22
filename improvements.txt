@@ -7,5 +7,5 @@ Created on Thu Feb 24 12:07:35 2022
 •	Combine export functionality with DB
 •	Changing global var modify_data to a dash component
 •	Add caching functionality with memorize decorator
-•	Add All options for editor secid dropdown
+•	Check load data case with 1 fsym_id
 •	Abstract somef functions from bg_data_uploader.py into classes
