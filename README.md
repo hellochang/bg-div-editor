@@ -1,21 +1,21 @@
 # bg-div-editor
 
-Check out the ![flowchart](div_uploader_flow_chart.png) for a visualization of the program callback::raise_hands::
+Check out the flowchart for a visualization of the program callback![flowchart](div_uploader_flow_chart.png)
 
 ## First steps
 
-![First step for the header of the program](first_steps.png)
+![First step for the header of the program](/img/first_step.png)
 
 ## Visualization
 
-![Data comparison and plots](view_data_comp_df_n_graph.png)
+![Data comparison and plots](/img/view_data_comp_df_n_graph.png)
 
-![Data comparison with factset data](comp_w_factset.png)
+![Data comparison with factset data](/img/comp_w_factset.png)
 
-![Data comparison with database data](bg_db_info_n_plot.png)
+![Data comparison with database data](/img/bg_db_info_n_plot.png)
 
-![Split history data](viz_split_hist.png)
+![Split history data](/img/viz_split_hist.png)
 
 ## Data Editor
 
-![Data Editor](edit_data.png)
+![Data Editor](/img/edit_data.png)
