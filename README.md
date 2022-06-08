@@ -4,7 +4,7 @@ Check out the flowchart for a visualization of the program callback![flowchart](
 
 ## First steps
 
-![First step for the header of the program](/img/first_step.png)
+![First step for the header of the program](/img/first_step.PNG)
 
 ## Visualization
 
