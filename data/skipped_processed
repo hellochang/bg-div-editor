@@ -1,0 +1,5 @@
+,fsym_id,listing_currency,payment_currency,declared_date,exdate,record_date,payment_date,payment_amount,div_type,div_freq,div_initiation,skipped
+231,J2KC1C-R,USD,USD,2020-03-23,2020-03-23,,,0,suspension,,0,False
+320,MG15L9-R,CAD,CAD,2020-05-15,2020-05-15,,,0,suspension,,0,False
+456,RLDWT5-R,USD,USD,2020-03-16,2020-03-27,,,0,suspension,,0,False
+562,WN8YY5-R,USD,USD,2009-11-30,2009-12-16,,,0,suspension,,0,False
